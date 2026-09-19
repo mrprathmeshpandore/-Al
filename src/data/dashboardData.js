@@ -163,5 +163,5 @@ export const sidebarNavigation = [
 
 export const sidebarSecondaryNav = [
   { id: "progress", label: "My Progress", path: "/progress", icon: "barChart3" },
-  { id: "settings", label: "Settings", path: "/dashboard?tab=settings", icon: "settings" },
+  { id: "settings", label: "Settings", path: "/settings", icon: "settings" },
 ];

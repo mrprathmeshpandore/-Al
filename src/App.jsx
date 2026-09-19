@@ -9,6 +9,7 @@ import QuestionBankPage from './pages/QuestionBankPage';
 import ProgressPage from './pages/ProgressPage';
 import ResourcesPage from './pages/ResourcesPage';
 import ResourceSubjectPage from './pages/ResourceSubjectPage';
+import SettingsPage from './pages/SettingsPage';
 
 export default function App() {
   return (
@@ -25,6 +26,7 @@ export default function App() {
         <Route path="/progress" element={<ProgressPage />} />
         <Route path="/resources" element={<ResourcesPage />} />
         <Route path="/resources/:subjectSlug" element={<ResourceSubjectPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<DashboardPage />} />
       </Routes>
     </BrowserRouter>
