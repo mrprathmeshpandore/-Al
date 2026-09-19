@@ -155,7 +155,7 @@ export const currentAffairs = [
 
 export const sidebarNavigation = [
   { id: "dashboard", label: "Dashboard", path: "/dashboard", icon: "layoutDashboard", active: true },
-  { id: "ai-interview", label: "AI Interview", path: "/dashboard?tab=interview", icon: "mic", active: false },
+  { id: "ai-interview", label: "AI Interview", path: "/interview", icon: "mic", active: false },
   { id: "question-bank", label: "Question Bank", path: "/dashboard?tab=question-bank", icon: "bookOpen", active: false },
   { id: "current-affairs", label: "Current Affairs", path: "/dashboard?tab=current-affairs", icon: "newspaper", active: false },
   { id: "resources", label: "Resources", path: "/dashboard?tab=resources", icon: "folder", active: false },
