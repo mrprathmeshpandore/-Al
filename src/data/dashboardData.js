@@ -158,7 +158,7 @@ export const sidebarNavigation = [
   { id: "ai-interview", label: "AI Interview", path: "/interview", icon: "mic", active: false },
   { id: "question-bank", label: "Question Bank", path: "/question-bank", icon: "bookOpen", active: false },
   { id: "current-affairs", label: "Current Affairs", path: "/current-affairs", icon: "newspaper", active: false },
-  { id: "resources", label: "Resources", path: "/dashboard?tab=resources", icon: "folder", active: false },
+  { id: "resources", label: "Resources", path: "/resources", icon: "folder", active: false },
 ];
 
 export const sidebarSecondaryNav = [

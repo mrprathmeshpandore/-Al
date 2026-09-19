@@ -7,6 +7,8 @@ import InterviewPage from './pages/InterviewPage';
 import CurrentAffairsPage from './pages/CurrentAffairsPage';
 import QuestionBankPage from './pages/QuestionBankPage';
 import ProgressPage from './pages/ProgressPage';
+import ResourcesPage from './pages/ResourcesPage';
+import ResourceSubjectPage from './pages/ResourceSubjectPage';
 
 export default function App() {
   return (
@@ -21,6 +23,8 @@ export default function App() {
         <Route path="/question-bank" element={<QuestionBankPage />} />
         <Route path="/question-bank/:id" element={<QuestionBankPage />} />
         <Route path="/progress" element={<ProgressPage />} />
+        <Route path="/resources" element={<ResourcesPage />} />
+        <Route path="/resources/:subjectSlug" element={<ResourceSubjectPage />} />
         <Route path="*" element={<DashboardPage />} />
       </Routes>
     </BrowserRouter>

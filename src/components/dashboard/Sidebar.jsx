@@ -84,7 +84,9 @@ export default function Sidebar({ isOpen, onClose }) {
           <nav className="space-y-1.5 pt-2">
             {sidebarNavigation.map((item) => {
               const IconComponent = iconMap[item.icon] || LayoutDashboard;
-              const isActive = location.pathname === item.path || (location.pathname === '/dashboard' && currentTab === item.id);
+              const isActive = location.pathname === item.path || 
+                (item.path !== '/' && item.path !== '/dashboard' && location.pathname.startsWith(item.path)) || 
+                (location.pathname === '/dashboard' && currentTab === item.id);
 
               return (
                 <Link
