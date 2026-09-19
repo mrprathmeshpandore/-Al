@@ -63,7 +63,7 @@ export function LogoutModal({ isOpen, onClose }) {
   );
 }
 
-export function DeleteAccountModal({ isOpen, onClose }) {
+export function DeleteAccountModal({ isOpen, onClose, onConfirmDelete }) {
   if (!isOpen) return null;
 
   return (
@@ -104,8 +104,8 @@ export function DeleteAccountModal({ isOpen, onClose }) {
           </button>
           <button
             onClick={() => {
-              alert("Account deletion request submitted.");
               onClose();
+              if (onConfirmDelete) onConfirmDelete();
             }}
             className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-colors shadow-2xs"
           >

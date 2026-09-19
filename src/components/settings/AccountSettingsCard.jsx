@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { User, Mail, ShieldCheck, ArrowRight } from 'lucide-react';
 
-export default function AccountSettingsCard() {
+export default function AccountSettingsCard({ onShowToast }) {
   const navigate = useNavigate();
 
   return (
@@ -57,7 +57,7 @@ export default function AccountSettingsCard() {
               </div>
             </div>
             <button
-              onClick={() => alert("Email & Password management modal")}
+              onClick={() => onShowToast && onShowToast("Redirecting to security settings...")}
               className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors"
             >
               <span>Manage</span>
@@ -77,7 +77,7 @@ export default function AccountSettingsCard() {
               </div>
             </div>
             <button
-              onClick={() => alert("Google OAuth Connection triggered")}
+              onClick={() => onShowToast && onShowToast("Google connection initialized.")}
               className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors"
             >
               <span>Connect</span>

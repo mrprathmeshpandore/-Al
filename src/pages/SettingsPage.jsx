@@ -16,8 +16,17 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState(defaultSettings);
   const [searchQuery, setSearchQuery] = useState('');
   const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('Settings saved successfully.');
   const [logoutModalOpen, setLogoutModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+
+  const triggerToast = (msg = 'Settings saved successfully.') => {
+    setToastMessage(msg);
+    setShowToast(true);
+    setTimeout(() => {
+      setShowToast(false);
+    }, 3000);
+  };
 
   const updateInterviewSetting = (key, value) => {
     setSettings(prev => ({
@@ -40,13 +49,6 @@ export default function SettingsPage() {
     }));
   };
 
-  const handleSaveChanges = () => {
-    setShowToast(true);
-    setTimeout(() => {
-      setShowToast(false);
-    }, 3000);
-  };
-
   return (
     <DashboardLayout>
       <div className="space-y-6 pb-20">
@@ -55,7 +57,7 @@ export default function SettingsPage() {
 
         {/* Top Grid: Account | Interview Preferences | Motivational Brand Card */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <AccountSettingsCard />
+          <AccountSettingsCard onShowToast={triggerToast} />
           <InterviewPreferencesCard
             settings={settings.interview}
             updateInterviewSetting={updateInterviewSetting}
@@ -73,7 +75,7 @@ export default function SettingsPage() {
             settings={settings.appearance}
             updateAppearanceSetting={updateAppearanceSetting}
           />
-          <PrivacyDataCard />
+          <PrivacyDataCard onShowToast={triggerToast} />
         </div>
 
         {/* Bottom Danger Zone */}
@@ -85,7 +87,7 @@ export default function SettingsPage() {
         {/* Floating / Sticky Save Bar */}
         <div className="fixed bottom-6 right-6 lg:right-10 z-40">
           <button
-            onClick={handleSaveChanges}
+            onClick={() => triggerToast("Settings saved successfully.")}
             className="flex items-center gap-2 py-3 px-6 rounded-2xl bg-[#0B1628] hover:bg-[#152744] text-white text-xs font-bold shadow-xl transition-all hover:scale-105 active:scale-95 group"
           >
             <Save className="w-4 h-4 text-amber-400 group-hover:rotate-12 transition-transform" />
@@ -94,9 +96,13 @@ export default function SettingsPage() {
         </div>
 
         {/* Confirmation Modals & Toast */}
-        <SettingsToast show={showToast} message="Settings saved successfully." />
+        <SettingsToast show={showToast} message={toastMessage} />
         <LogoutModal isOpen={logoutModalOpen} onClose={() => setLogoutModalOpen(false)} />
-        <DeleteAccountModal isOpen={deleteModalOpen} onClose={() => setDeleteModalOpen(false)} />
+        <DeleteAccountModal
+          isOpen={deleteModalOpen}
+          onClose={() => setDeleteModalOpen(false)}
+          onConfirmDelete={() => triggerToast("Account deletion request logged.")}
+        />
       </div>
     </DashboardLayout>
   );

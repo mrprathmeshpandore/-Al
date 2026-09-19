@@ -12,16 +12,16 @@ const iconMap = {
   shieldCheck: ShieldCheck
 };
 
-export default function PrivacyDataCard() {
+export default function PrivacyDataCard({ onShowToast }) {
   const navigate = useNavigate();
 
   const handleItemClick = (item) => {
     if (item.path) {
       navigate(item.path);
     } else if (item.id === 'download-data') {
-      alert("Preparing data export package...");
+      onShowToast && onShowToast("Exporting user data archive...");
     } else {
-      alert(`Opening ${item.title}`);
+      onShowToast && onShowToast(`Opening ${item.title}...`);
     }
   };
 
