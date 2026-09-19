@@ -5,6 +5,7 @@ import DashboardPage from './pages/DashboardPage';
 import ProfilePage from './pages/ProfilePage';
 import InterviewPage from './pages/InterviewPage';
 import CurrentAffairsPage from './pages/CurrentAffairsPage';
+import QuestionBankPage from './pages/QuestionBankPage';
 
 export default function App() {
   return (
@@ -16,6 +17,8 @@ export default function App() {
         <Route path="/interview" element={<InterviewPage />} />
         <Route path="/current-affairs" element={<CurrentAffairsPage />} />
         <Route path="/current-affairs/:id" element={<CurrentAffairsPage />} />
+        <Route path="/question-bank" element={<QuestionBankPage />} />
+        <Route path="/question-bank/:id" element={<QuestionBankPage />} />
         <Route path="*" element={<DashboardPage />} />
       </Routes>
     </BrowserRouter>
