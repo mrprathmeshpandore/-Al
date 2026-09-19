@@ -118,7 +118,7 @@ export default function Sidebar({ isOpen, onClose }) {
           <nav className="space-y-1.5">
             {sidebarSecondaryNav.map((item) => {
               const IconComponent = iconMap[item.icon] || BarChart3;
-              const isActive = currentTab === item.id;
+              const isActive = location.pathname === item.path || currentTab === item.id;
 
               return (
                 <Link
