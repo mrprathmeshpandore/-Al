@@ -27,3 +27,7 @@ htmlcov/
 # IDE
 .idea/
 .vscode/
+
+# Local File Storage
+storage/
+storage/resources/

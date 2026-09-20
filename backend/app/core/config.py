@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 Hours
 
+    # PDF & Resource Processing Pipeline Configuration
+    MAX_PDF_SIZE_MB: int = Field(default=25, description="Maximum allowed PDF upload size in megabytes")
+    STORAGE_DIR: str = Field(default="storage/resources", description="Directory path for resource file storage")
+    CHUNK_SIZE: int = Field(default=1000, description="Target character length for document text chunks")
+    CHUNK_OVERLAP: int = Field(default=150, description="Overlap character length between sequential chunks")
+
     # CORS Configuration
     CORS_ORIGINS: List[str] = Field(
         default=["http://localhost:5173", "http://127.0.0.1:5173"],
