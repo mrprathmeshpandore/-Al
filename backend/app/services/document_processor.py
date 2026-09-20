@@ -5,11 +5,11 @@ from datetime import datetime, timezone
 
 from app.core.config import settings
 from app.models.document import Document, ProcessingStatus
-from app.models.document_chunk import DocumentChunk
+from app.models.document_chunk import DocumentChunk, EmbeddingStatus
 from app.services.pdf_extractor import extract_pdf_pages
 from app.services.text_cleaner import clean_text
 from app.services.chunker import chunk_pages
-from app.services.embedding_provider import get_embedding_provider
+from app.services.embedding_service import process_chunk_embeddings
 
 logger = logging.getLogger("document_processor")
 
@@ -72,29 +72,39 @@ def process_document(document_id: str, db: Session) -> bool:
             db.commit()
             return False
 
-        # 5. Generate Embeddings
-        embedding_provider = get_embedding_provider()
-        chunk_contents = [c["content"] for c in chunks_data]
-        embeddings = embedding_provider.embed_documents(chunk_contents)
+        # 5. Generate Batch Embeddings & Hashes via Embedding Service
+        processed_chunks = process_chunk_embeddings(chunks_data)
 
-        # 6. Delete old chunks if any
+        # Verify embedding success
+        failed_count = sum(1 for c in processed_chunks if c.get("embedding_status") == EmbeddingStatus.FAILED.value)
+        if failed_count > 0:
+            document.processing_status = ProcessingStatus.FAILED.value
+            document.page_count = page_count
+            document.error_message = f"Embedding generation failed for {failed_count}/{len(processed_chunks)} chunks."
+            document.updated_at = datetime.now(timezone.utc)
+            db.commit()
+            logger.error(f"Document {document_id} marked FAILED due to embedding errors.")
+            return False
+
+        # 6. Idempotent reprocessing: Delete old chunks for this document
         db.query(DocumentChunk).filter(DocumentChunk.document_id == document_id).delete()
 
-        # 7. Bulk create DocumentChunks
-        new_chunks = []
-        for i, c in enumerate(chunks_data):
-            emb = embeddings[i] if i < len(embeddings) else None
+        # 7. Bulk create DocumentChunks with embeddings and metadata
+        new_chunk_objs = []
+        for c in processed_chunks:
             chunk_obj = DocumentChunk(
                 document_id=document_id,
                 chunk_index=c["chunk_index"],
                 page_number=c["page_number"],
                 content=c["content"],
-                chunk_metadata=c["metadata"],
-                embedding=emb,
+                content_hash=c.get("content_hash"),
+                chunk_metadata=c.get("metadata"),
+                embedding=c.get("embedding"),
+                embedding_status=c.get("embedding_status", EmbeddingStatus.COMPLETED.value),
             )
-            new_chunks.append(chunk_obj)
+            new_chunk_objs.append(chunk_obj)
 
-        db.add_all(new_chunks)
+        db.add_all(new_chunk_objs)
 
         # 8. Update Document Status to PROCESSED
         document.page_count = page_count
@@ -103,7 +113,7 @@ def process_document(document_id: str, db: Session) -> bool:
         document.updated_at = datetime.now(timezone.utc)
 
         db.commit()
-        logger.info(f"Document {document_id} successfully PROCESSED ({len(new_chunks)} chunks, {page_count} pages).")
+        logger.info(f"Document {document_id} successfully PROCESSED ({len(new_chunk_objs)} chunks, {page_count} pages).")
         return True
 
     except Exception as e:

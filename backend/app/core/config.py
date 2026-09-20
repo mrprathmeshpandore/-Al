@@ -30,6 +30,13 @@ class Settings(BaseSettings):
     CHUNK_SIZE: int = Field(default=1000, description="Target character length for document text chunks")
     CHUNK_OVERLAP: int = Field(default=150, description="Overlap character length between sequential chunks")
 
+    # RAG & Vector Embedding Configuration
+    GEMINI_EMBEDDING_MODEL: str = Field(default="text-embedding-004", description="Gemini embedding model name")
+    EMBEDDING_DIMENSION: int = Field(default=768, description="Vector embedding float dimension")
+    EMBEDDING_BATCH_SIZE: int = Field(default=16, description="Maximum batch size for chunk embedding API calls")
+    RAG_TOP_K: int = Field(default=5, description="Default number of top relevant chunks to retrieve")
+    RAG_MIN_SIMILARITY: float = Field(default=0.5, description="Minimum cosine similarity threshold for RAG retrieval")
+
     # CORS Configuration
     CORS_ORIGINS: List[str] = Field(
         default=["http://localhost:5173", "http://127.0.0.1:5173"],
