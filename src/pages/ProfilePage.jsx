@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, Save } from 'lucide-react';
 import DashboardLayout from '../components/dashboard/DashboardLayout';
 import ProfileHeroHeader from '../components/profile/ProfileHeroHeader';
 import ProfileStepper from '../components/profile/ProfileStepper';
@@ -13,15 +13,76 @@ import ProfileCompletionCard from '../components/profile/ProfileCompletionCard';
 import ProfilePreviewCard from '../components/profile/ProfilePreviewCard';
 import StepsOverviewCard from '../components/profile/StepsOverviewCard';
 import ProfileMotivationalBanner from '../components/profile/ProfileMotivationalBanner';
-import { initialProfileData, profileSteps } from '../data/profileData';
+import { initialProfileData } from '../data/profileData';
+import { profileApi } from '../services/profileApi';
 
 export default function ProfilePage() {
   const [activeStep, setActiveStep] = useState(1);
   const [profileData, setProfileData] = useState(initialProfileData);
+  const [backendCompletion, setBackendCompletion] = useState(0);
+  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [savingProfile, setSavingProfile] = useState(false);
   const [errors, setErrors] = useState({});
   const [isSubmitted, setIsSubmitted] = useState(false);
 
-  // DYNAMIC COMPLETION STATUS LOGIC
+  // FETCH PROFILE DATA FROM BACKEND ON MOUNT
+  useEffect(() => {
+    let isMounted = true;
+    async function loadBackendProfile() {
+      try {
+        const response = await profileApi.getProfile();
+        if (isMounted && response?.profile) {
+          const p = response.profile;
+          setProfileData({
+            personal: {
+              fullName: p.personal?.fullName || '',
+              dob: p.personal?.dob || '',
+              homeState: p.personal?.homeState || '',
+              district: p.personal?.district || '',
+              currentCity: p.personal?.currentCity || '',
+              gender: p.personal?.gender || '',
+              photoUrl: p.personal?.photoUrl || null,
+            },
+            education: {
+              degree: p.education?.degree || '',
+              university: p.education?.university || '',
+              specialization: p.education?.specialization || '',
+              postGraduation: p.education?.postGraduation || '',
+              otherQualifications: p.education?.otherQualifications || '',
+            },
+            upscJourney: {
+              attemptCount: p.upscJourney?.attemptCount || '',
+              optionalSubject: p.upscJourney?.optionalSubject || '',
+              previousInterviewExp: p.upscJourney?.previousInterviewExp || '',
+              preparationStage: p.upscJourney?.preparationStage || '',
+            },
+            interests: {
+              hobbies: p.interests?.hobbies || '',
+              sports: p.interests?.sports || '',
+              readingBooks: p.interests?.readingBooks || '',
+              areasOfInterest: p.interests?.areasOfInterest || '',
+              socialActivities: p.interests?.socialActivities || '',
+            },
+            perspective: {
+              whyCivilServices: p.perspective?.whyCivilServices || '',
+              keyFocusAreas: p.perspective?.keyFocusAreas || '',
+              boardMessage: p.perspective?.boardMessage || '',
+            },
+          });
+          setBackendCompletion(response.completion_percentage ?? 0);
+        }
+      } catch (err) {
+        console.error('Failed to load backend profile:', err);
+      } finally {
+        if (isMounted) setLoadingProfile(false);
+      }
+    }
+
+    loadBackendProfile();
+    return () => { isMounted = false; };
+  }, []);
+
+  // STEP COMPLETION STATUSES
   const stepStatuses = useMemo(() => {
     const statuses = {};
     
@@ -76,12 +137,6 @@ export default function ProfilePage() {
     return statuses;
   }, [profileData]);
 
-  // CALCULATE OVERALL COMPLETION PERCENTAGE (20% per completed step)
-  const completionPercentage = useMemo(() => {
-    const completedCount = Object.values(stepStatuses).filter(s => s === 'Completed').length;
-    return completedCount * 20;
-  }, [stepStatuses]);
-
   // FORM INPUT CHANGE HANDLER
   const handleInputChange = (stepKey) => (e) => {
     const { name, value } = e.target;
@@ -93,7 +148,6 @@ export default function ProfilePage() {
       }
     }));
 
-    // Clear error for this field if present
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: undefined }));
     }
@@ -139,14 +193,37 @@ export default function ProfilePage() {
     return Object.keys(currentErrors).length === 0;
   };
 
+  // SAVE TO BACKEND HANDLER
+  const saveProfileToBackend = async () => {
+    setSavingProfile(true);
+    try {
+      const response = await profileApi.updateProfile({
+        personal: profileData.personal,
+        education: profileData.education,
+        upscJourney: profileData.upscJourney,
+        interests: profileData.interests,
+        perspective: profileData.perspective,
+      });
+      if (response?.completion_percentage !== undefined) {
+        setBackendCompletion(response.completion_percentage);
+      }
+      return true;
+    } catch (err) {
+      console.error('Error saving profile:', err);
+      return false;
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
   // NAVIGATION HANDLERS
-  const handleNext = () => {
+  const handleNext = async () => {
     if (validateCurrentStep()) {
+      await saveProfileToBackend();
       if (activeStep < 5) {
         setActiveStep(prev => prev + 1);
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
-        // Complete Profile
         setIsSubmitted(true);
       }
     }
@@ -158,6 +235,17 @@ export default function ProfilePage() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
+
+  if (loadingProfile) {
+    return (
+      <DashboardLayout>
+        <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3">
+          <Loader2 className="w-8 h-8 animate-spin text-[#0B1628]" />
+          <p className="text-xs font-bold text-slate-600">Loading your DAF Profile from Backend...</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -190,7 +278,7 @@ export default function ProfilePage() {
                   <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0" />
                   <div>
                     <h4 className="text-sm font-bold text-[#0B1628]">Profile Setup Completed!</h4>
-                    <p className="text-xs text-slate-600 font-medium">Your UPSC DAF parameters are saved. AI will now generate custom interview questions for you.</p>
+                    <p className="text-xs text-slate-600 font-medium">Your UPSC DAF parameters are saved to PostgreSQL. AI will now generate custom interview questions for you.</p>
                   </div>
                 </div>
                 <a 
@@ -259,7 +347,7 @@ export default function ProfilePage() {
                 <button
                   type="button"
                   onClick={handleBack}
-                  disabled={activeStep === 1}
+                  disabled={activeStep === 1 || savingProfile}
                   className={`px-5 py-2.5 rounded-full text-xs font-bold flex items-center gap-2 border transition-all ${
                     activeStep === 1 
                       ? 'border-slate-200 text-slate-300 cursor-not-allowed bg-slate-50' 
@@ -274,11 +362,21 @@ export default function ProfilePage() {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   type="button"
+                  disabled={savingProfile}
                   onClick={handleNext}
                   className="bg-[#0B1628] hover:bg-[#152744] text-white px-6 py-2.5 rounded-full text-xs font-bold inline-flex items-center gap-2 shadow-md shadow-slate-900/10 transition-all cursor-pointer"
                 >
-                  <span>{activeStep === 5 ? 'Complete Profile →' : 'Save & Continue →'}</span>
-                  {activeStep < 5 && <ArrowRight className="w-4 h-4 text-amber-400" />}
+                  {savingProfile ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>{activeStep === 5 ? 'Complete Profile →' : 'Save & Continue →'}</span>
+                      {activeStep < 5 && <ArrowRight className="w-4 h-4 text-amber-400" />}
+                    </>
+                  )}
                 </motion.button>
               </div>
 
@@ -291,8 +389,8 @@ export default function ProfilePage() {
 
           {/* RIGHT COLUMN (4 cols on desktop) */}
           <div className="lg:col-span-4 space-y-6">
-            {/* PROFILE COMPLETION PERCENTAGE CARD */}
-            <ProfileCompletionCard percentage={completionPercentage} />
+            {/* PROFILE COMPLETION PERCENTAGE CARD FROM BACKEND */}
+            <ProfileCompletionCard percentage={backendCompletion} />
 
             {/* DYNAMIC PROFILE PREVIEW CARD */}
             <ProfilePreviewCard 

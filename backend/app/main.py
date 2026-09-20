@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.database import engine, Base
-from app.routers import health, profile
+from app.routers import health, profile, auth
 
 # Configure Backend Logging
 logging.basicConfig(
@@ -51,6 +51,7 @@ app.add_middleware(
 
 # Include API Routers
 app.include_router(health.router, prefix=settings.API_V1_STR)
+app.include_router(auth.router, prefix=settings.API_V1_STR)
 app.include_router(profile.router, prefix=settings.API_V1_STR)
 
 

@@ -1,5 +1,9 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import AuthModal from './components/auth/AuthModal';
+import ProtectedRoute from './components/auth/ProtectedRoute';
+
 import LandingPage from './pages/LandingPage';
 import DashboardPage from './pages/DashboardPage';
 import ProfilePage from './pages/ProfilePage';
@@ -14,21 +18,27 @@ import SettingsPage from './pages/SettingsPage';
 export default function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/interview" element={<InterviewPage />} />
-        <Route path="/current-affairs" element={<CurrentAffairsPage />} />
-        <Route path="/current-affairs/:id" element={<CurrentAffairsPage />} />
-        <Route path="/question-bank" element={<QuestionBankPage />} />
-        <Route path="/question-bank/:id" element={<QuestionBankPage />} />
-        <Route path="/progress" element={<ProgressPage />} />
-        <Route path="/resources" element={<ResourcesPage />} />
-        <Route path="/resources/:subjectSlug" element={<ResourceSubjectPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
-        <Route path="*" element={<DashboardPage />} />
-      </Routes>
+      <AuthProvider>
+        <AuthModal />
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          
+          {/* Protected Application Routes */}
+          <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+          <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+          <Route path="/interview" element={<ProtectedRoute><InterviewPage /></ProtectedRoute>} />
+          <Route path="/current-affairs" element={<ProtectedRoute><CurrentAffairsPage /></ProtectedRoute>} />
+          <Route path="/current-affairs/:id" element={<ProtectedRoute><CurrentAffairsPage /></ProtectedRoute>} />
+          <Route path="/question-bank" element={<ProtectedRoute><QuestionBankPage /></ProtectedRoute>} />
+          <Route path="/question-bank/:id" element={<ProtectedRoute><QuestionBankPage /></ProtectedRoute>} />
+          <Route path="/progress" element={<ProtectedRoute><ProgressPage /></ProtectedRoute>} />
+          <Route path="/resources" element={<ProtectedRoute><ResourcesPage /></ProtectedRoute>} />
+          <Route path="/resources/:subjectSlug" element={<ProtectedRoute><ResourceSubjectPage /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+
+          <Route path="*" element={<DashboardPage />} />
+        </Routes>
+      </AuthProvider>
     </BrowserRouter>
   );
 }

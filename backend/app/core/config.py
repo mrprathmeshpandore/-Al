@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     # API Keys & Secrets
     GEMINI_API_KEY: str = Field(default="", description="Gemini API Key for future RAG/AI modules")
     SECRET_KEY: str = Field(default="dev_secret_key_prashasak_ai_change_in_production_32bytes", description="Application secret key")
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 Hours
 
     # CORS Configuration
     CORS_ORIGINS: List[str] = Field(

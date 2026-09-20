@@ -1,10 +1,14 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Search, ArrowRight } from 'lucide-react';
+import { Search, ArrowRight, User as UserIcon, LogOut } from 'lucide-react';
 import { buttonTapHover } from '../utils/animations';
+import { useAuth } from '../context/AuthContext';
 
 export default function Navbar() {
+  const { isAuthenticated, user, openAuthModal, logout } = useAuth();
+  const navigate = useNavigate();
+
   const navItems = [
     { label: 'Home', path: '/', active: true },
     { label: 'AI Interview', path: '/dashboard?tab=interview', active: false },
@@ -14,7 +18,6 @@ export default function Navbar() {
     { label: 'Pricing', path: '/#pricing', active: false },
   ];
 
-  // Container variant for navbar items stagger
   const navbarContainer = {
     hidden: { opacity: 0, y: -20 },
     visible: {
@@ -46,10 +49,8 @@ export default function Navbar() {
         {/* LOGO & BRAND SLOGAN */}
         <Link to="/">
           <motion.div variants={navChildItem} className="flex items-center gap-3 group cursor-pointer">
-            {/* Emblem Dome / Column Icon */}
             <div className="w-10 h-10 rounded-lg bg-[#0B1628] text-white flex flex-col items-center justify-center shadow-md group-hover:bg-[#152744] transition-colors">
               <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24">
-                {/* Pillars / Parliament Dome Emblem */}
                 <path d="M12 2L4 6v2h16V6l-8-4zm-6 8v8h2v-8H6zm4 0v8h2v-8h-2zm4 0v8h2v-8h-2zm4 0v8h2v-8h-2zM3 20v2h18v-2H3z" />
               </svg>
             </div>
@@ -93,7 +94,7 @@ export default function Navbar() {
           ))}
         </nav>
 
-        {/* RIGHT CONTROLS: SEARCH, LOGIN, CTA */}
+        {/* RIGHT CONTROLS: SEARCH, AUTH, CTA */}
         <div className="flex items-center gap-4">
           <motion.button
             variants={navChildItem}
@@ -109,25 +110,46 @@ export default function Navbar() {
             |
           </motion.span>
 
-          <Link
-            to="/dashboard"
-            className="text-[13.5px] font-semibold text-[#475569] hover:text-[#0F172A] transition-colors px-2 hidden sm:inline"
-          >
-            Login
-          </Link>
+          {isAuthenticated ? (
+            <div className="flex items-center gap-3">
+              <Link
+                to="/profile"
+                className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-[#0B1628] px-3.5 py-1.5 rounded-full text-xs font-bold transition-colors"
+              >
+                <UserIcon className="w-3.5 h-3.5 text-[#E86A24]" />
+                <span>{user?.full_name?.split(' ')[0] || 'Profile'}</span>
+              </Link>
 
-          <Link to="/dashboard">
-            <motion.button
-              variants={buttonTapHover}
-              initial="rest"
-              whileHover="hover"
-              whileTap="tap"
-              className="bg-[#0B1628] hover:bg-[#152744] text-white px-5 py-2.5 rounded-full text-[13.5px] font-semibold flex items-center gap-2 shadow-md shadow-slate-900/10 transition-colors cursor-pointer"
-            >
-              <span>Start Preparing</span>
-              <ArrowRight className="w-4 h-4" />
-            </motion.button>
-          </Link>
+              <button
+                onClick={logout}
+                title="Sign Out"
+                className="p-2 text-slate-500 hover:text-rose-600 transition-colors cursor-pointer"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <>
+              <button
+                onClick={() => openAuthModal('login')}
+                className="text-[13.5px] font-semibold text-[#475569] hover:text-[#0F172A] transition-colors px-2 hidden sm:inline cursor-pointer"
+              >
+                Login
+              </button>
+
+              <motion.button
+                variants={buttonTapHover}
+                initial="rest"
+                whileHover="hover"
+                whileTap="tap"
+                onClick={() => openAuthModal('register')}
+                className="bg-[#0B1628] hover:bg-[#152744] text-white px-5 py-2.5 rounded-full text-[13.5px] font-semibold flex items-center gap-2 shadow-md shadow-slate-900/10 transition-colors cursor-pointer"
+              >
+                <span>Start Preparing</span>
+                <ArrowRight className="w-4 h-4" />
+              </motion.button>
+            </>
+          )}
         </div>
 
       </div>
