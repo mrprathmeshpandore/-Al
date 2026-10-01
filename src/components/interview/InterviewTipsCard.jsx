@@ -1,6 +1,13 @@
 import React from 'react';
 import { Lightbulb, Check } from 'lucide-react';
-import { answerTips } from '../../data/interviewData';
+
+const answerTips = [
+  "Be structured in your response",
+  "Use real-world examples",
+  "Show balance and critical thinking",
+  "Connect with India's context",
+  "Stay calm and take your time"
+];
 
 export default function InterviewTipsCard() {
   return (

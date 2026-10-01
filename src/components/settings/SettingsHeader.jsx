@@ -1,8 +1,12 @@
 import React from 'react';
 import { Search, Bell } from 'lucide-react';
-import { userProfile } from '../../data/dashboardData';
+import { useAuth } from '../../context/AuthContext';
 
 export default function SettingsHeader({ searchQuery, setSearchQuery }) {
+  const { user } = useAuth();
+  const userName = user?.full_name || 'UPSC Candidate';
+  const userInitials = userName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'UA';
+
   return (
     <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 pb-2 border-b border-slate-200/60">
       <div>
@@ -43,11 +47,12 @@ export default function SettingsHeader({ searchQuery, setSearchQuery }) {
             <span className="w-2 h-2 rounded-full bg-amber-500 absolute top-1.5 right-1.5 ring-2 ring-white" />
           </button>
 
-          <img
-            src={userProfile.avatar}
-            alt={userProfile.name}
-            className="w-9 h-9 rounded-full object-cover ring-2 ring-amber-500/30 cursor-pointer"
-          />
+          <div
+            title={userName}
+            className="w-9 h-9 rounded-full bg-[#0B1628] text-amber-400 border border-amber-500/40 font-serif font-bold text-xs flex items-center justify-center ring-2 ring-amber-500/20 shadow-2xs cursor-pointer"
+          >
+            {userInitials}
+          </div>
         </div>
       </div>
     </div>

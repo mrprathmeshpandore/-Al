@@ -1,7 +1,33 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserCheck, Sparkles, X, Volume2 } from 'lucide-react';
-import { interviewers } from '../../data/interviewData';
+
+const interviewers = [
+  {
+    id: "v-k-sharma",
+    name: "Shri V. K. Sharma (Retd. IAS)",
+    role: "Former Union Secretary & UPSC Board Chairman",
+    status: "Online",
+    image: "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=1200",
+    initialSpeech: "Let's have a meaningful discussion. Take your time to think and answer."
+  },
+  {
+    id: "anita-desai",
+    name: "Dr. Anita Desai",
+    role: "Ex-UPSC Board Member & Public Policy Chair",
+    status: "Online",
+    image: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=1200",
+    initialSpeech: "Welcome. We look forward to understanding your administrative perspective."
+  },
+  {
+    id: "r-k-hegde",
+    name: "Prof. R. K. Hegde",
+    role: "Governance & Ethics Expert",
+    status: "Online",
+    image: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=1200",
+    initialSpeech: "Stay calm and composed. Focus on clarity and balanced reasoning."
+  }
+];
 
 export default function InterviewerCard({ isSpeaking, isProcessing }) {
   const [selectedInterviewer, setSelectedInterviewer] = useState(interviewers[0]);

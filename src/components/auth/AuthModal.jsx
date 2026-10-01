@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Mail, Lock, User, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 export default function AuthModal() {
+  const navigate = useNavigate();
   const {
     isAuthModalOpen,
     closeAuthModal,
@@ -44,6 +46,7 @@ export default function AuthModal() {
       setEmail('');
       setPassword('');
       setFullName('');
+      navigate('/dashboard');
     } catch (err) {
       setError(err.message || 'Authentication failed. Please try again.');
     } finally {

@@ -47,17 +47,31 @@ def search_knowledge_base(
             "message": "Query string must not be empty."
         }
 
+    import time
+    from app.services.cache_service import get_cache_service
+
+    start_time = time.time()
     effective_top_k = top_k or settings.RAG_TOP_K
     filters = filters or {}
 
-    # 1. Generate query embedding vector
-    active_provider = provider or get_embedding_provider()
-    query_vector = active_provider.embed_text(clean_query)
+    # 1. Generate query embedding vector (with cache lookup)
+    cache = get_cache_service()
+    import hashlib
+    query_hash = hashlib.sha256(clean_query.encode("utf-8")).hexdigest()
+    cache_key = f"embed:query:{query_hash}"
+    query_vector = cache.get(cache_key)
+
+    if not query_vector:
+        active_provider = provider or get_embedding_provider()
+        query_vector = active_provider.embed_text(clean_query)
+        if query_vector:
+            cache.set(cache_key, query_vector, ttl=1800)
 
     if not query_vector:
         return {
             "query": clean_query,
             "results": [],
+            "retrieval_latency_ms": round((time.time() - start_time) * 1000, 2),
             "message": "Failed to generate embedding vector for query."
         }
 
@@ -76,6 +90,8 @@ def search_knowledge_base(
                 Resource.created_by == current_user_id
             )
         )
+    else:
+        q = q.filter(Resource.is_official == True)
 
     # 4. Apply Metadata Filters
     if filters.get("subject"):
@@ -127,15 +143,19 @@ def search_knowledge_base(
     scored_results.sort(key=lambda x: x["score"], reverse=True)
     top_results = scored_results[:effective_top_k]
 
+    retrieval_latency_ms = round((time.time() - start_time) * 1000, 2)
+
     if not top_results:
         return {
             "query": clean_query,
             "results": [],
+            "retrieval_latency_ms": retrieval_latency_ms,
             "message": "No sufficiently relevant content found."
         }
 
     return {
         "query": clean_query,
         "results": top_results,
+        "retrieval_latency_ms": retrieval_latency_ms,
         "message": f"Successfully retrieved top {len(top_results)} relevant knowledge chunks."
     }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Mic, 
@@ -9,24 +9,40 @@ import {
   ArrowRight, 
   CheckCircle2, 
   RotateCcw,
-  Volume2
+  Volume2,
+  AlertCircle,
+  Edit3,
+  RefreshCw
 } from 'lucide-react';
-import { mockFeedback } from '../../data/interviewData';
+import { voiceApi } from '../../services/voiceApi';
 
-export default function AnswerArea({ onStateChange, onNextQuestion }) {
-  // STATES: 'IDLE' | 'LISTENING' | 'TEXT_MODE' | 'PROCESSING' | 'FEEDBACK'
+export default function AnswerArea({ onStateChange, onNextQuestion, onSubmitAnswer, currentQuestionText }) {
+  // STATES: 'IDLE' | 'LISTENING' | 'TRANSCRIBING' | 'TRANSCRIBED' | 'TEXT_MODE' | 'PROCESSING' | 'FEEDBACK' | 'MIC_DENIED' | 'STT_ERROR'
   const [modeState, setModeState] = useState('IDLE');
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [typedAnswer, setTypedAnswer] = useState('');
+  const [transcript, setTranscript] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [isSynthesizing, setIsSynthesizing] = useState(false);
+  const [ttsAudioUrl, setTtsAudioUrl] = useState(null);
+  const [evaluation, setEvaluation] = useState(null);
 
-  // VOICE RECORDING TIMER
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+
+  // Reset TTS audio URL when question changes so we don't play old audio
+  useEffect(() => {
+    setTtsAudioUrl(null);
+  }, [currentQuestionText]);
+
+  // TIMER FOR RECORDING DURATION
   useEffect(() => {
     let interval = null;
     if (modeState === 'LISTENING') {
       interval = setInterval(() => {
         setRecordingSeconds(prev => prev + 1);
       }, 1000);
-    } else {
+    } else if (modeState !== 'TRANSCRIBING' && modeState !== 'TRANSCRIBED') {
       setRecordingSeconds(0);
     }
     return () => clearInterval(interval);
@@ -39,29 +55,128 @@ export default function AnswerArea({ onStateChange, onNextQuestion }) {
     }
   }, [modeState, onStateChange]);
 
-  const handleStartVoice = () => {
-    setModeState('LISTENING');
+  // TTS PLAYBACK HANDLER FOR QUESTION
+  const handlePlayTTS = async () => {
+    if (!currentQuestionText) return;
+    setIsSynthesizing(true);
+    try {
+      if (ttsAudioUrl) {
+        const audio = new Audio(ttsAudioUrl);
+        audio.play();
+        setIsSynthesizing(false);
+        return;
+      }
+      const audioUrl = await voiceApi.synthesizeSpeech(currentQuestionText);
+      setTtsAudioUrl(audioUrl);
+      const audio = new Audio(audioUrl);
+      audio.play();
+    } catch (err) {
+      // Browser SpeechSynthesis Fallback
+      if ('speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(currentQuestionText);
+        utterance.lang = 'en-IN';
+        window.speechSynthesis.speak(utterance);
+      }
+    } finally {
+      setIsSynthesizing(false);
+    }
+  };
+
+  const handleStartVoice = async () => {
+    setErrorMessage('');
+    audioChunksRef.current = [];
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setErrorMessage('Microphone access is not supported in your browser. You can type your answer instead.');
+      setModeState('MIC_DENIED');
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+        // Clean up tracks
+        stream.getTracks().forEach(track => track.stop());
+        await processAudioTranscription(audioBlob);
+      };
+
+      mediaRecorder.start();
+      setModeState('LISTENING');
+    } catch (err) {
+      setErrorMessage('Microphone access was denied. You can type your answer instead.');
+      setModeState('MIC_DENIED');
+    }
   };
 
   const handleStopVoice = () => {
-    setModeState('PROCESSING');
-    setTimeout(() => {
-      setModeState('FEEDBACK');
-    }, 2500);
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop();
+      setModeState('TRANSCRIBING');
+    } else {
+      setModeState('IDLE');
+    }
   };
 
-  const handleSubmitText = () => {
-    if (!typedAnswer.trim()) return;
-    setModeState('PROCESSING');
-    setTimeout(() => {
-      setModeState('FEEDBACK');
-    }, 2500);
+  const processAudioTranscription = async (audioBlob) => {
+    setModeState('TRANSCRIBING');
+    try {
+      const result = await voiceApi.transcribeAudio(audioBlob);
+      const textResult = (result.text || '').trim();
+      if (!textResult) {
+        setErrorMessage('Voice transcription resulted in empty text. Please speak clearly or type your answer.');
+        setModeState('STT_ERROR');
+        return;
+      }
+      setTranscript(textResult);
+      setTypedAnswer(textResult);
+      setModeState('TRANSCRIBED');
+    } catch (err) {
+      setErrorMessage(err.message || 'Voice transcription failed. You can try recording again or type your answer.');
+      setModeState('STT_ERROR');
+    }
   };
 
-  const handleContinueNext = () => {
-    setModeState('IDLE');
-    setTypedAnswer('');
-    if (onNextQuestion) onNextQuestion();
+  const handleSubmitFinalAnswer = async () => {
+    const finalAnswerText = typedAnswer.trim() || transcript.trim();
+    if (!finalAnswerText) return;
+
+    setModeState('PROCESSING');
+    try {
+      if (onSubmitAnswer) {
+        const evalResult = await onSubmitAnswer(finalAnswerText, recordingSeconds || 30);
+        setEvaluation(evalResult);
+      }
+      setModeState('FEEDBACK');
+    } catch (err) {
+      setErrorMessage(err.message || 'Evaluation failed. Please try again.');
+      setModeState('TEXT_MODE');
+    }
+  };
+
+  const [isNavigating, setIsNavigating] = useState(false);
+
+  const handleContinueNext = async () => {
+    if (isNavigating) return;
+    setIsNavigating(true);
+    try {
+      if (onNextQuestion) await onNextQuestion();
+    } finally {
+      setIsNavigating(false);
+      setModeState('IDLE');
+      setTypedAnswer('');
+      setTranscript('');
+      setRecordingSeconds(0);
+      setEvaluation(null);
+    }
   };
 
   const formatRecTime = (sec) => {
@@ -73,6 +188,23 @@ export default function AnswerArea({ onStateChange, onNextQuestion }) {
   return (
     <div className="w-full bg-white rounded-2xl p-6 sm:p-8 border border-slate-200/80 shadow-2xs space-y-6">
       
+      {/* OPTIONAL TTS BUTTON BANNER */}
+      {currentQuestionText && (
+        <div className="flex items-center justify-between bg-slate-50 border border-slate-200/80 px-4 py-2.5 rounded-xl">
+          <div className="flex items-center gap-2">
+            <Volume2 className="w-4 h-4 text-amber-600" />
+            <span className="text-xs font-semibold text-slate-700">Listen to AI Question Voice</span>
+          </div>
+          <button
+            onClick={handlePlayTTS}
+            disabled={isSynthesizing}
+            className="text-xs font-bold text-amber-600 hover:text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-3 py-1 rounded-full flex items-center gap-1 cursor-pointer transition-colors"
+          >
+            {isSynthesizing ? 'Synthesizing...' : 'Play Question Audio 🔊'}
+          </button>
+        </div>
+      )}
+
       <AnimatePresence mode="wait">
         
         {/* STATE 1: IDLE DEFAULT STATE */}
@@ -179,8 +311,84 @@ export default function AnswerArea({ onStateChange, onNextQuestion }) {
               onClick={handleStopVoice}
               className="bg-[#0B1628] hover:bg-[#152744] text-white px-6 py-2.5 rounded-full text-xs font-bold shadow-md cursor-pointer"
             >
-              Stop & Submit Answer →
+              Stop & Transcribe Answer →
             </button>
+          </motion.div>
+        )}
+
+        {/* STATE: TRANSCRIBING */}
+        {modeState === 'TRANSCRIBING' && (
+          <motion.div
+            key="transcribing"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="flex flex-col items-center justify-center text-center space-y-4 py-8"
+          >
+            <div className="w-12 h-12 rounded-full border-4 border-amber-500/20 border-t-amber-600 animate-spin" />
+            <div>
+              <h4 className="text-sm font-bold text-[#0B1628]">Transcribing Speech to Text...</h4>
+              <p className="text-xs text-slate-500 font-medium mt-1">Processing recorded audio with AI speech model.</p>
+            </div>
+          </motion.div>
+        )}
+
+        {/* STATE: TRANSCRIBED PREVIEW & EDITING */}
+        {modeState === 'TRANSCRIBED' && (
+          <motion.div
+            key="transcribed"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="space-y-4"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Edit3 className="w-4 h-4 text-amber-600" />
+                <h4 className="text-xs font-bold text-[#0B1628]">Review & Edit Voice Transcript</h4>
+              </div>
+              <span className="text-[11px] font-semibold text-slate-400">
+                Duration: {formatRecTime(recordingSeconds)}
+              </span>
+            </div>
+
+            <textarea
+              rows={4}
+              value={typedAnswer}
+              onChange={(e) => setTypedAnswer(e.target.value)}
+              placeholder="Edit your transcribed speech before final submission..."
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0B1628]/20 focus:bg-white transition-all resize-none"
+            />
+
+            <div className="flex items-center justify-between pt-1">
+              <button
+                type="button"
+                onClick={handleStartVoice}
+                className="px-4 py-2 rounded-full text-xs font-bold text-slate-600 hover:text-slate-900 border border-slate-200 flex items-center gap-1.5 cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Re-record</span>
+              </button>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setModeState('TEXT_MODE')}
+                  className="px-4 py-2 rounded-full text-xs font-bold text-slate-600 hover:text-slate-900 border border-slate-200"
+                >
+                  Switch to Type
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSubmitFinalAnswer}
+                  disabled={!typedAnswer.trim()}
+                  className="bg-[#0B1628] hover:bg-[#152744] text-white px-6 py-2 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-md disabled:opacity-50 cursor-pointer"
+                >
+                  <span>Submit Answer</span>
+                  <Send className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
           </motion.div>
         )}
 
@@ -226,7 +434,7 @@ export default function AnswerArea({ onStateChange, onNextQuestion }) {
                 </button>
                 <button
                   type="button"
-                  onClick={handleSubmitText}
+                  onClick={handleSubmitFinalAnswer}
                   disabled={!typedAnswer.trim()}
                   className="bg-[#0B1628] hover:bg-[#152744] text-white px-5 py-2 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-md disabled:opacity-50 cursor-pointer"
                 >
@@ -234,6 +442,43 @@ export default function AnswerArea({ onStateChange, onNextQuestion }) {
                   <Send className="w-3.5 h-3.5" />
                 </button>
               </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* STATE: MIC_DENIED OR STT_ERROR */}
+        {(modeState === 'MIC_DENIED' || modeState === 'STT_ERROR') && (
+          <motion.div
+            key="error_state"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0 }}
+            className="p-5 bg-rose-50 border border-rose-200 rounded-2xl text-center space-y-4"
+          >
+            <div className="w-10 h-10 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+              <AlertCircle className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-rose-900">
+                {modeState === 'MIC_DENIED' ? 'Microphone Access Denied' : 'Voice Transcription Failed'}
+              </h4>
+              <p className="text-xs text-rose-700 font-medium mt-1">
+                {errorMessage || 'Voice input is currently unavailable.'}
+              </p>
+            </div>
+            <div className="flex items-center justify-center gap-3">
+              <button
+                onClick={handleStartVoice}
+                className="px-4 py-2 rounded-full text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 cursor-pointer"
+              >
+                Try Again
+              </button>
+              <button
+                onClick={() => setModeState('TEXT_MODE')}
+                className="bg-[#0B1628] hover:bg-[#152744] text-white px-5 py-2 rounded-full text-xs font-bold cursor-pointer"
+              >
+                Type Answer Instead
+              </button>
             </div>
           </motion.div>
         )}
@@ -256,7 +501,7 @@ export default function AnswerArea({ onStateChange, onNextQuestion }) {
         )}
 
         {/* STATE 5: FEEDBACK STATE */}
-        {modeState === 'FEEDBACK' && (
+        {modeState === 'FEEDBACK' && evaluation && (
           <motion.div
             key="feedback"
             initial={{ opacity: 0, scale: 0.95 }}
@@ -266,15 +511,19 @@ export default function AnswerArea({ onStateChange, onNextQuestion }) {
           >
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <span className={`px-3 py-1 rounded-full text-xs font-extrabold border ${mockFeedback.badgeColor}`}>
-                  {mockFeedback.badge} · {mockFeedback.score}
+                <span className={`px-3 py-1 rounded-full text-xs font-extrabold border ${
+                  evaluation.overall_score >= 8 ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
+                  evaluation.overall_score >= 6 ? 'bg-amber-100 text-amber-800 border-amber-300' :
+                  'bg-rose-100 text-rose-800 border-rose-300'
+                }`}>
+                  {evaluation.overall_score >= 8 ? 'Excellent' : evaluation.overall_score >= 6 ? 'Good Start' : 'Needs Work'} · {Math.round(evaluation.overall_score * 10)}%
                 </span>
                 <span className="text-xs font-bold text-slate-500">AI Evaluation Feedback</span>
               </div>
             </div>
 
             <p className="text-xs font-semibold text-slate-700 leading-relaxed bg-slate-50 p-3.5 rounded-xl border border-slate-200/60">
-              {mockFeedback.summary}
+              {evaluation.overall_feedback}
             </p>
 
             <div className="pt-2 flex items-center justify-end gap-3">

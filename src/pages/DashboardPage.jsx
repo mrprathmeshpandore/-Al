@@ -1,5 +1,5 @@
-import React from 'react';
-import { useLocation, Navigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useLocation, Navigate, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import DashboardLayout from '../components/dashboard/DashboardLayout';
 import InterviewHeroCard from '../components/dashboard/InterviewHeroCard';
@@ -8,10 +8,30 @@ import ProgressStatCard from '../components/dashboard/ProgressStatCard';
 import PerformanceCard from '../components/dashboard/PerformanceCard';
 import RecentInterviewsCard from '../components/dashboard/RecentInterviewsCard';
 import CurrentAffairsCard from '../components/dashboard/CurrentAffairsCard';
+import { analyticsApi } from '../services/analyticsApi';
 
 export default function DashboardPage() {
   const location = useLocation();
+  const navigate = useNavigate();
   const currentTab = new URLSearchParams(location.search).get('tab') || 'dashboard';
+
+  const [dashboardData, setDashboardData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadDashboard() {
+      try {
+        setLoading(true);
+        const data = await analyticsApi.getAnalyticsDashboard();
+        setDashboardData(data);
+      } catch (err) {
+        console.error('Failed to load dashboard analytics:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadDashboard();
+  }, []);
 
   // Direct redirects for tab query params to ensure actual feature pages render
   if (currentTab === 'settings') return <Navigate to="/settings" replace />;
@@ -34,7 +54,7 @@ export default function DashboardPage() {
         >
           {/* PRIMARY AI INTERVIEW HERO BANNER */}
           <InterviewHeroCard 
-            onStartInterview={() => alert("Launching AI Interview Session...")} 
+            onStartInterview={() => navigate('/interview')} 
           />
 
           {/* DASHBOARD GRID LAYOUT */}
@@ -46,13 +66,13 @@ export default function DashboardPage() {
               <PracticeCard />
 
               {/* YOUR PROGRESS STATISTICS */}
-              <ProgressStatCard />
+              <ProgressStatCard overview={dashboardData?.overview} />
 
               {/* INTERVIEW PERFORMANCE ANALYTICS */}
-              <PerformanceCard />
+              <PerformanceCard skillData={dashboardData?.skills} />
 
               {/* RECENT INTERVIEWS */}
-              <RecentInterviewsCard />
+              <RecentInterviewsCard recentInterviews={dashboardData?.recent_interviews} />
             </div>
 
             {/* RIGHT COLUMN (4 cols on desktop) */}

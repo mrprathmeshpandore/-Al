@@ -30,13 +30,15 @@ def process_document(document_id: str, db: Session) -> bool:
         document.updated_at = datetime.now(timezone.utc)
         db.commit()
 
-        file_path = os.path.join(settings.STORAGE_DIR, document.stored_filename)
+        from app.services.storage_service import get_storage_service
+        storage = get_storage_service()
 
-        if not os.path.exists(file_path):
-            raise FileNotFoundError(f"Stored document file not found at {file_path}")
+        if not storage.file_exists(document.stored_filename):
+            raise FileNotFoundError(f"Stored document file not found in storage: {document.stored_filename}")
 
-        # 2. Extract PDF Pages
-        extracted = extract_pdf_pages(file_path)
+        # 2. Extract PDF Pages via Storage Service
+        file_bytes = storage.get_file(document.stored_filename)
+        extracted = extract_pdf_pages(file_bytes)
         page_count = extracted["page_count"]
         raw_pages = extracted["pages"]
 

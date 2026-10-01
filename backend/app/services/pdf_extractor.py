@@ -1,17 +1,25 @@
+import io
 import os
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Union
 import pypdf
 
 
-def extract_pdf_pages(file_path: str) -> Dict[str, Any]:
+def extract_pdf_pages(file_input: Union[str, bytes, io.BytesIO]) -> Dict[str, Any]:
     """
-    Extracts text page-by-page from a PDF file using pypdf.
+    Extracts text page-by-page from a PDF file (path or bytes) using pypdf.
     Preserves page numbers, text order, and metadata.
     """
-    if not os.path.exists(file_path):
-        raise FileNotFoundError(f"PDF file not found at path: {file_path}")
+    if isinstance(file_input, str):
+        if not os.path.exists(file_input):
+            raise FileNotFoundError(f"PDF file not found at path: {file_input}")
+        reader = pypdf.PdfReader(file_input)
+    elif isinstance(file_input, bytes):
+        reader = pypdf.PdfReader(io.BytesIO(file_input))
+    elif isinstance(file_input, io.BytesIO):
+        reader = pypdf.PdfReader(file_input)
+    else:
+        raise ValueError("Unsupported PDF input type. Must be file path, bytes, or BytesIO.")
 
-    reader = pypdf.PdfReader(file_path)
     page_count = len(reader.pages)
     extracted_pages: List[Dict[str, Any]] = []
 

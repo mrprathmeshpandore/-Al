@@ -1,7 +1,8 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, LogOut, Trash2, CheckCircle2, X } from 'lucide-react';
+import { LogOut, Trash2, CheckCircle2, X } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 export function SettingsToast({ show, message }) {
   if (!show) return null;
@@ -23,7 +24,15 @@ export function SettingsToast({ show, message }) {
 
 export function LogoutModal({ isOpen, onClose }) {
   const navigate = useNavigate();
+  const { logout } = useAuth();
+
   if (!isOpen) return null;
+
+  const handleConfirmLogout = () => {
+    onClose();
+    logout();
+    navigate('/');
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
@@ -52,7 +61,7 @@ export function LogoutModal({ isOpen, onClose }) {
             Cancel
           </button>
           <button
-            onClick={() => { onClose(); navigate('/'); }}
+            onClick={handleConfirmLogout}
             className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-colors shadow-2xs"
           >
             Confirm Log Out

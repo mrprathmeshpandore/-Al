@@ -23,7 +23,7 @@ export default function LearnPracticeCard({ onUploadSuccess }) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.toLowerCase().endswith('.pdf') && file.type !== 'application/pdf') {
+    if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
       setError('Please select a valid PDF file.');
       return;
     }

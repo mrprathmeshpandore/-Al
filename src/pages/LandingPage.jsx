@@ -1,4 +1,6 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 import Hero from '../components/Hero';
 import StatsSection from '../components/StatsSection';
@@ -6,6 +8,14 @@ import InterviewSection from '../components/InterviewSection';
 import FooterBanner from '../components/FooterBanner';
 
 export default function LandingPage() {
+  const { isAuthenticated, loading } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!loading && isAuthenticated) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [isAuthenticated, loading, navigate]);
   return (
     <div className="min-h-screen bg-[#FBF9F5] text-[#1E293B] relative font-sans overflow-x-hidden">
       {/* Top Navbar */}

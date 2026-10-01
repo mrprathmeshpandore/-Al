@@ -1,8 +1,16 @@
 import React from 'react';
 import { Search, Bell, Menu } from 'lucide-react';
-import { userProfile } from '../../data/dashboardData';
+import { useAuth } from '../../context/AuthContext';
 
 export default function DashboardHeader({ onMenuClick }) {
+  const { user } = useAuth();
+  const userName = user?.full_name ? user.full_name.split(' ')[0] : 'Aspirant';
+  const fullName = user?.full_name || 'UPSC Candidate';
+  const userInitials = fullName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'UA';
+
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
+
   return (
     <header className="w-full bg-[#FAF8F5]/80 backdrop-blur-md border-b border-slate-200/60 sticky top-0 z-30 px-4 sm:px-8 py-4 transition-all">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
@@ -19,11 +27,11 @@ export default function DashboardHeader({ onMenuClick }) {
           
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-[#0B1628] tracking-tight flex items-center gap-2">
-              <span>{userProfile.greetingTime}, {userProfile.name}</span>
+              <span>{greeting}, {userName}</span>
               <span className="inline-block animate-bounce text-lg sm:text-xl">👋</span>
             </h1>
             <p className="text-xs sm:text-sm font-medium text-slate-500 mt-0.5">
-              {userProfile.subtitle}
+              Ready to challenge your thinking today?
             </p>
           </div>
         </div>
@@ -53,13 +61,14 @@ export default function DashboardHeader({ onMenuClick }) {
             <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white" />
           </button>
 
-          {/* PROFILE AVATAR */}
+          {/* PROFILE AVATAR BADGE */}
           <div className="flex items-center gap-2">
-            <img 
-              src={userProfile.avatar} 
-              alt={userProfile.name} 
-              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover border-2 border-white shadow-xs ring-2 ring-amber-500/20"
-            />
+            <div 
+              title={fullName}
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#0B1628] text-amber-400 border border-amber-500/40 font-serif font-bold text-xs sm:text-sm flex items-center justify-center ring-2 ring-amber-500/20 shadow-2xs cursor-pointer"
+            >
+              {userInitials}
+            </div>
           </div>
 
         </div>

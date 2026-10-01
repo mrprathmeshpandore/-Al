@@ -1,8 +1,9 @@
 import React from 'react';
 import { Landmark, BarChart2, FileText } from 'lucide-react';
-import { currentQuestionData } from '../../data/interviewData';
 
-export default function QuestionMetadataCard({ metadata = currentQuestionData }) {
+export default function QuestionMetadataCard({ metadata }) {
+  if (!metadata) return null;
+
   return (
     <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-2xs space-y-4">
       
@@ -16,10 +17,10 @@ export default function QuestionMetadataCard({ metadata = currentQuestionData })
             Current Topic
           </span>
           <h3 className="text-base font-bold text-[#0B1628] truncate">
-            {metadata.topic}
+            {metadata.topic || 'General'}
           </h3>
           <p className="text-[11px] font-semibold text-slate-500 truncate">
-            {metadata.categories.join(' · ')}
+            {metadata.category || metadata.categories?.join(' · ') || 'UPSC'}
           </p>
         </div>
       </div>

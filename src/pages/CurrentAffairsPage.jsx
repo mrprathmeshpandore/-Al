@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, ChevronDown, Quote } from 'lucide-react';
+import { Search, ChevronDown, Quote, Loader2 } from 'lucide-react';
 import DashboardLayout from '../components/dashboard/DashboardLayout';
 import CurrentAffairsHeader from '../components/currentAffairs/CurrentAffairsHeader';
 import CategoryFilters from '../components/currentAffairs/CategoryFilters';
@@ -9,16 +9,53 @@ import TodayHighlightsCard from '../components/currentAffairs/TodayHighlightsCar
 import CurrentAffairCard from '../components/currentAffairs/CurrentAffairCard';
 import UpscFocusAreasCard from '../components/currentAffairs/UpscFocusAreasCard';
 import CurrentAffairDetailModal from '../components/currentAffairs/CurrentAffairDetailModal';
-import { currentAffairsList, featuredAffair } from '../data/currentAffairsData';
+import { currentAffairsApi } from '../services/currentAffairsApi';
 
 export default function CurrentAffairsPage() {
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [articles, setArticles] = useState(currentAffairsList);
+  const [articles, setArticles] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [sortBy, setSortBy] = useState('latest');
 
-  // INTERACTIVE BOOKMARK TOGGLE
+  useEffect(() => {
+    async function loadBackendArticles() {
+      try {
+        setLoading(true);
+        const data = await currentAffairsApi.getCurrentAffairs({
+          category: activeCategory !== 'all' ? activeCategory.toUpperCase() : undefined,
+          query: searchQuery.trim() || undefined,
+        });
+        if (Array.isArray(data)) {
+          setArticles(data.map(art => ({
+            id: art.id,
+            title: art.title,
+            summary: art.summary || art.content_summary || 'Analysis of national governance and administrative policy.',
+            category: art.category?.toLowerCase() || 'national',
+            categoryLabel: art.category || 'National Policy',
+            subcategory: art.topic || art.subtopic || 'Governance',
+            date: art.published_at ? new Date(art.published_at).toLocaleDateString() : 'Recent',
+            readTime: '5 min read',
+            source: art.source_name || 'The Hindu',
+            isBookmarked: false,
+            upscRelevance: art.upsc_relevance || 'Relevant for GS Paper II Governance and Civil Services Interview.',
+            keyTakeaways: Array.isArray(art.key_points) ? art.key_points : [
+              'Policy implications on multi-stakeholder governance',
+              'Constitutional and administrative trade-offs',
+            ],
+            interviewAngle: art.interview_angle || 'Be prepared to analyze implementation challenges and policy trade-offs.',
+          })));
+        }
+      } catch (err) {
+        console.error('Failed to load current affairs:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadBackendArticles();
+  }, [activeCategory]);
+
   const handleToggleBookmark = (id) => {
     setArticles(prev => prev.map(art => 
       art.id === id ? { ...art, isBookmarked: !art.isBookmarked } : art
@@ -28,24 +65,23 @@ export default function CurrentAffairsPage() {
     }
   };
 
-  // FILTERED ARTICLES BY CATEGORY & SEARCH
   const filteredArticles = useMemo(() => {
     return articles.filter(art => {
-      const matchesCategory = activeCategory === 'all' || art.category === activeCategory;
+      const matchesCategory = activeCategory === 'all' || art.category === activeCategory.toLowerCase();
       const matchesSearch = !searchQuery.trim() || 
         art.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         art.summary.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        art.categoryLabel.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        art.subcategory.toLowerCase().includes(searchQuery.toLowerCase());
+        art.categoryLabel.toLowerCase().includes(searchQuery.toLowerCase());
 
       return matchesCategory && matchesSearch;
     });
   }, [articles, activeCategory, searchQuery]);
 
+  const featuredItem = articles.length > 0 ? articles[0] : null;
+
   return (
     <DashboardLayout>
       <div className="space-y-8">
-        
         {/* HEADER BANNER */}
         <CurrentAffairsHeader />
 
@@ -57,18 +93,18 @@ export default function CurrentAffairsPage() {
 
         {/* MAIN 2-COLUMN GRID */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          
           {/* LEFT COLUMN (8 cols on desktop) */}
           <div className="lg:col-span-8 space-y-8">
-            
             {/* FEATURED CURRENT AFFAIR CARD */}
-            <FeaturedCurrentAffair 
-              onOpenDetail={(item) => setSelectedArticle(item)}
-            />
+            {featuredItem && (
+              <FeaturedCurrentAffair 
+                item={featuredItem}
+                onOpenDetail={(item) => setSelectedArticle(item)}
+              />
+            )}
 
             {/* LATEST CURRENT AFFAIRS SECTION */}
             <div className="space-y-5">
-              
               {/* SECTION TITLE & SORT DROPDOWN */}
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-bold text-[#0B1628] tracking-tight">
@@ -97,7 +133,12 @@ export default function CurrentAffairsPage() {
               </div>
 
               {/* GRID OF CARDS */}
-              {filteredArticles.length > 0 ? (
+              {loading ? (
+                <div className="p-12 text-center text-slate-500 font-semibold bg-white rounded-2xl border border-slate-200">
+                  <Loader2 className="w-8 h-8 animate-spin text-[#0B1628] mx-auto mb-2" />
+                  <p className="text-xs">Loading Current Affairs from Backend...</p>
+                </div>
+              ) : filteredArticles.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                   {filteredArticles.map((art) => (
                     <CurrentAffairCard
@@ -114,25 +155,23 @@ export default function CurrentAffairsPage() {
                   <p className="text-xs text-slate-500">Try selecting "All Topics" or adjusting your search query.</p>
                   <button
                     onClick={() => { setActiveCategory('all'); setSearchQuery(''); }}
-                    className="mt-2 text-xs font-bold text-amber-600 hover:underline"
+                    className="mt-2 text-xs font-bold text-amber-600 hover:underline cursor-pointer"
                   >
                     Reset Filters
                   </button>
                 </div>
               )}
-
             </div>
-
           </div>
 
           {/* RIGHT SIDEBAR COLUMN (4 cols on desktop) */}
           <div className="lg:col-span-4 space-y-6">
-            
             {/* TODAY'S HIGHLIGHTS WIDGET */}
             <TodayHighlightsCard 
+              articles={articles.slice(0, 5)}
               onSelectHighlight={(targetId) => {
-                const found = articles.find(a => a.id === targetId) || featuredAffair;
-                setSelectedArticle(found);
+                const found = articles.find(a => a.id === targetId) || featuredItem;
+                if (found) setSelectedArticle(found);
               }}
             />
 
@@ -151,9 +190,7 @@ export default function CurrentAffairsPage() {
               </p>
               <div className="w-8 h-1 bg-amber-500 rounded-full" />
             </div>
-
           </div>
-
         </div>
 
         {/* CURRENT AFFAIR DETAIL MODAL */}
@@ -166,7 +203,6 @@ export default function CurrentAffairsPage() {
             />
           )}
         </AnimatePresence>
-
       </div>
     </DashboardLayout>
   );

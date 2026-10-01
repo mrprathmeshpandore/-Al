@@ -5,8 +5,14 @@ const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
-    const saved = localStorage.getItem('prashasak_user');
-    return saved ? JSON.parse(saved) : null;
+    try {
+      const saved = localStorage.getItem('prashasak_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      console.warn('Corrupt user data in localStorage, clearing:', e);
+      localStorage.removeItem('prashasak_user');
+      return null;
+    }
   });
   const [token, setTokenState] = useState(() => authApi.getToken());
   const [loading, setLoading] = useState(true);

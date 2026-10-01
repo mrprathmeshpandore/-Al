@@ -111,7 +111,15 @@ export default function Navbar() {
           </motion.span>
 
           {isAuthenticated ? (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
+              <Link
+                to="/dashboard"
+                className="bg-[#0B1628] hover:bg-[#152744] text-white px-4 py-1.5 rounded-full text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
+              >
+                <span>Dashboard</span>
+                <ArrowRight className="w-3.5 h-3.5 text-[#E86A24]" />
+              </Link>
+
               <Link
                 to="/profile"
                 className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-[#0B1628] px-3.5 py-1.5 rounded-full text-xs font-bold transition-colors"

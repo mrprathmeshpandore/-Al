@@ -14,6 +14,8 @@ from app.services.text_cleaner import clean_text
 from app.services.chunker import chunk_pages
 from app.services.document_processor import process_document
 from app.models.document import Document, ProcessingStatus
+from app.models.resource import Resource
+from app.seed.upsc_resources import seed_upsc_resources
 
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
 engine = create_engine(
@@ -34,11 +36,13 @@ def override_get_db():
 
 @pytest.fixture(autouse=True)
 def setup_db():
+    app.dependency_overrides.clear()
     import app.routers.resources as resources_router
     resources_router.SessionLocal = TestingSessionLocal
     Base.metadata.create_all(bind=engine)
     app.dependency_overrides[get_db] = override_get_db
     yield
+    app.dependency_overrides.clear()
     Base.metadata.drop_all(bind=engine)
 
 
@@ -50,7 +54,6 @@ def create_sample_pdf_bytes(text_content: str = "Prashasak AI UPSC Civil Service
     writer = pypdf.PdfWriter()
     writer.add_blank_page(width=612, height=792)
     
-    # We can write minimal valid PDF structure or use pypdf
     buffer = io.BytesIO()
     writer.write(buffer)
     buffer.seek(0)
@@ -146,12 +149,12 @@ def test_list_resources_and_filtering():
     )
 
     # Test List All
-    res_all = client.get("/api/resources")
+    res_all = client.get("/api/resources", headers=headers)
     assert res_all.status_code == 200
     assert len(res_all.json()) >= 2
 
     # Test Search Query
-    res_search = client.get("/api/resources?search=History")
+    res_search = client.get("/api/resources?search=History", headers=headers)
     assert res_search.status_code == 200
     titles = [r["title"] for r in res_search.json()]
     assert "Modern Indian History" in titles
@@ -168,12 +171,12 @@ def test_categories_and_subjects_counts():
         headers=headers
     )
 
-    res_cat = client.get("/api/resources/categories")
+    res_cat = client.get("/api/resources/categories", headers=headers)
     assert res_cat.status_code == 200
     cats = {c["category"]: c["resource_count"] for c in res_cat.json()}
     assert "Core Subjects" in cats
 
-    res_subj = client.get("/api/resources/subjects")
+    res_subj = client.get("/api/resources/subjects", headers=headers)
     assert res_subj.status_code == 200
     subjs = {s["subject"]: s["resource_count"] for s in res_subj.json()}
     assert "Geography" in subjs
@@ -230,3 +233,60 @@ def test_text_cleaner_and_chunker_services():
     assert len(chunks) >= 2
     assert chunks[0]["page_number"] == 1
     assert "chunk_index" in chunks[0]
+
+
+def test_seed_upsc_resources_creation_and_idempotency():
+    db = TestingSessionLocal()
+    try:
+        # First Run: Seed 24 built-in official resources
+        res_1 = seed_upsc_resources(db)
+        assert res_1["status"] == "success"
+        assert res_1["seeded_count"] == 24
+        assert res_1["total_official_resources"] == 24
+
+        # Second Run: Idempotency assertion
+        res_2 = seed_upsc_resources(db)
+        assert res_2["status"] == "success"
+        assert res_2["seeded_count"] == 0
+        assert res_2["skipped_count"] == 24
+        assert res_2["total_official_resources"] == 24
+    finally:
+        db.close()
+
+
+def test_builtin_resources_visibility_in_api():
+    db = TestingSessionLocal()
+    try:
+        seed_upsc_resources(db)
+    finally:
+        db.close()
+
+    headers = get_authenticated_headers("builtin_api_user@example.com")
+    res = client.get("/api/resources", headers=headers)
+    assert res.status_code == 200
+    resources = res.json()
+    official_titles = [r["title"] for r in resources if r["is_official"]]
+    assert len(official_titles) >= 24
+    assert "UPSC Civil Services Syllabus & Examination Pattern" in official_titles
+    assert "Indian Polity & Constitutional Framework" in official_titles
+
+
+def test_rag_search_builtin_upsc_content():
+    db = TestingSessionLocal()
+    try:
+        seed_upsc_resources(db)
+    finally:
+        db.close()
+
+    headers = get_authenticated_headers("rag_search_user@example.com")
+    res = client.post(
+        "/api/rag/search",
+        json={"query": "What are the 275-mark Personality Test evaluation criteria?", "top_k": 3},
+        headers=headers
+    )
+    assert res.status_code == 200
+    results = res.json()["results"]
+    assert len(results) > 0
+    # Verify citations and official status
+    assert "resource_title" in results[0]
+    assert results[0]["score"] > 0

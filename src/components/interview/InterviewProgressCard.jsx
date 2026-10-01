@@ -1,9 +1,31 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Check } from 'lucide-react';
-import { questionFlowList, interviewSession } from '../../data/interviewData';
 
-export default function InterviewProgressCard() {
+export default function InterviewProgressCard({ questions = [], totalQuestions = 5, currentIndex = 1 }) {
+  // Sort questions by sequence_number just in case
+  const sortedQuestions = [...questions].sort((a, b) => a.sequence_number - b.sequence_number);
+  
+  // Create a display list of questions
+  const displayList = sortedQuestions.map((q) => {
+    let status = 'pending';
+    if (q.question_status === 'ANSWERED') {
+      status = 'completed';
+    } else if (q.question_status === 'ASKED') {
+      status = 'active';
+    }
+    return {
+      step: q.sequence_number,
+      text: `Question ${q.sequence_number}`,
+      status,
+      type: q.type || 'MAIN'
+    };
+  });
+
+  // Calculate percentage
+  const answeredCount = sortedQuestions.filter(q => q.question_status === 'ANSWERED').length;
+  const overallProgressPercentage = totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0;
+
   return (
     <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-2xs space-y-4">
       
@@ -13,7 +35,7 @@ export default function InterviewProgressCard() {
           Interview Progress
         </h4>
         <span className="text-sm font-extrabold text-[#0B1628]">
-          {interviewSession.overallProgressPercentage}%
+          {overallProgressPercentage}%
         </span>
       </div>
 
@@ -21,7 +43,7 @@ export default function InterviewProgressCard() {
       <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden p-0.5">
         <motion.div
           initial={{ width: 0 }}
-          animate={{ width: `${interviewSession.overallProgressPercentage}%` }}
+          animate={{ width: `${overallProgressPercentage}%` }}
           transition={{ duration: 0.6 }}
           className="h-full bg-gradient-to-r from-amber-500 to-emerald-600 rounded-full"
         />
@@ -29,7 +51,7 @@ export default function InterviewProgressCard() {
 
       {/* QUESTION FLOW LIST */}
       <div className="space-y-2 pt-1">
-        {questionFlowList.slice(0, 6).map((item) => {
+        {displayList.map((item) => {
           const isCompleted = item.status === 'completed';
           const isActive = item.status === 'active';
 

@@ -10,10 +10,10 @@ import {
   BarChart3, 
   Settings, 
   ChevronRight,
-  LogOut,
   X
 } from 'lucide-react';
-import { sidebarNavigation, sidebarSecondaryNav, userProfile } from '../../data/dashboardData';
+import { sidebarNavigation, sidebarSecondaryNav } from '../../data/dashboardData';
+import { useAuth } from '../../context/AuthContext';
 
 const iconMap = {
   layoutDashboard: LayoutDashboard,
@@ -28,6 +28,10 @@ const iconMap = {
 export default function Sidebar({ isOpen, onClose }) {
   const location = useLocation();
   const currentTab = new URLSearchParams(location.search).get('tab') || 'dashboard';
+  const { user } = useAuth();
+
+  const userName = user?.full_name || 'UPSC Candidate';
+  const userEmail = user?.email || 'Aspirant';
 
   return (
     <>
@@ -142,7 +146,7 @@ export default function Sidebar({ isOpen, onClose }) {
             })}
           </nav>
 
-          {/* BOTTOM INSPIRATIONAL QUOTE CARD (As in Reference Image) */}
+          {/* BOTTOM INSPIRATIONAL QUOTE CARD */}
           <div className="mt-auto pt-4">
             <div className="p-3.5 rounded-2xl bg-gradient-to-br from-amber-500/10 via-amber-100/30 to-slate-100/60 border border-amber-200/60 relative overflow-hidden group">
               <div className="absolute right-0 bottom-0 opacity-10 text-4xl select-none font-serif text-slate-800">
@@ -162,17 +166,15 @@ export default function Sidebar({ isOpen, onClose }) {
             <Link to="/profile" onClick={() => onClose && onClose()}>
               <div className={`flex items-center justify-between p-2 rounded-xl hover:bg-slate-200/40 transition-colors cursor-pointer group ${location.pathname === '/profile' ? 'bg-amber-500/10 border border-amber-200' : ''}`}>
                 <div className="flex items-center gap-3">
-                  <img 
-                    src={userProfile.avatar} 
-                    alt={userProfile.name}
-                    className="w-9 h-9 rounded-full object-cover ring-2 ring-amber-500/30" 
-                  />
-                  <div className="flex flex-col">
-                    <span className="text-xs font-bold text-[#0B1628] group-hover:text-amber-700 transition-colors">
-                      {userProfile.name}
+                  <div className="w-9 h-9 rounded-full bg-amber-500 text-white font-bold text-sm flex items-center justify-center ring-2 ring-amber-500/30">
+                    {userName.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-xs font-bold text-[#0B1628] group-hover:text-amber-700 transition-colors truncate">
+                      {userName}
                     </span>
-                    <span className="text-[10.5px] font-medium text-slate-500">
-                      {userProfile.role}
+                    <span className="text-[10.5px] font-medium text-slate-500 truncate">
+                      {userEmail}
                     </span>
                   </div>
                 </div>

@@ -1,7 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Layers, FileCheck, Star, Flame, ChevronDown } from 'lucide-react';
-import { dashboardStats } from '../../data/dashboardData';
 
 const statIcons = {
   layers: { icon: Layers, bg: 'bg-blue-50 text-blue-600 border-blue-100' },
@@ -10,17 +9,45 @@ const statIcons = {
   flame: { icon: Flame, bg: 'bg-orange-50 text-orange-600 border-orange-100' },
 };
 
-export default function ProgressStatCard() {
-  const statsList = [
-    { key: 'questionsPracticed', ...dashboardStats.questionsPracticed },
-    { key: 'interviewsCompleted', ...dashboardStats.interviewsCompleted },
-    { key: 'averageScore', ...dashboardStats.averageScore },
-    { key: 'dayStreak', ...dashboardStats.dayStreak },
+export default function ProgressStatCard({ overview }) {
+  const statsList = overview ? [
+    {
+      key: 'questionsPracticed',
+      label: 'Questions Practiced',
+      value: overview.total_questions_practiced ?? 0,
+      icon: 'layers',
+      trend: `${overview.total_answers ?? 0} Answers`,
+    },
+    {
+      key: 'interviewsCompleted',
+      label: 'Interviews Completed',
+      value: overview.total_interviews_completed ?? 0,
+      icon: 'fileCheck',
+      trend: `${overview.total_interviews_started ?? 0} Started`,
+    },
+    {
+      key: 'averageScore',
+      label: 'Average Score',
+      value: overview.average_score != null ? `${overview.average_score}/10` : '—',
+      icon: 'star',
+      trend: overview.total_evaluated_answers > 0 ? `${overview.total_evaluated_answers} Evaluated` : 'No evaluations',
+    },
+    {
+      key: 'dayStreak',
+      label: 'Day Streak',
+      value: `${overview.current_streak ?? 0} Days`,
+      icon: 'flame',
+      badge: `Best: ${overview.longest_streak ?? 0} Days`,
+    },
+  ] : [
+    { key: 'questionsPracticed', label: 'Questions Practiced', value: '—', icon: 'layers' },
+    { key: 'interviewsCompleted', label: 'Interviews Completed', value: '—', icon: 'fileCheck' },
+    { key: 'averageScore', label: 'Average Score', value: '—', icon: 'star' },
+    { key: 'dayStreak', label: 'Day Streak', value: '0 Days', icon: 'flame' },
   ];
 
   return (
     <div className="space-y-4">
-      
       {/* SECTION HEADER */}
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-bold text-[#0B1628] tracking-tight">
@@ -28,7 +55,7 @@ export default function ProgressStatCard() {
         </h3>
         <div className="relative">
           <button className="text-xs font-semibold text-slate-600 bg-white border border-slate-200/80 px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-2xs hover:border-slate-300 transition-all">
-            <span>This Month</span>
+            <span>Real-time Stats</span>
             <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
           </button>
         </div>
@@ -76,7 +103,6 @@ export default function ProgressStatCard() {
           );
         })}
       </div>
-
     </div>
   );
 }

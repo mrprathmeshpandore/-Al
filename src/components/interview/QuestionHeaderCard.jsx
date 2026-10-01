@@ -1,16 +1,44 @@
 import React, { useState } from 'react';
 import { Volume2, VolumeX } from 'lucide-react';
 
+import { voiceApi } from '../../services/voiceApi';
+
 export default function QuestionHeaderCard({ questionData }) {
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [audioUrl, setAudioUrl] = useState(null);
 
-  const handleListenAgain = () => {
+  const handleListenAgain = async () => {
+    if (!questionData?.question) return;
+    
     setIsPlayingAudio(true);
-    // Simulate text-to-speech reading animation
-    setTimeout(() => {
+    try {
+      // Reuse cached audio url if we already synthesized this exact question
+      let currentUrl = audioUrl;
+      if (!currentUrl) {
+        currentUrl = await voiceApi.synthesizeSpeech(questionData.question);
+        setAudioUrl(currentUrl);
+      }
+      
+      const audio = new Audio(currentUrl);
+      audio.onended = () => setIsPlayingAudio(false);
+      audio.onerror = () => {
+        console.error("Audio playback error");
+        setIsPlayingAudio(false);
+      };
+      await audio.play();
+    } catch (err) {
+      console.error("Failed to synthesize or play speech", err);
       setIsPlayingAudio(false);
-    }, 4000);
+    }
   };
+  
+  // Cleanup object URL on unmount or question change
+  React.useEffect(() => {
+    setAudioUrl(null); // Reset when question changes
+    return () => {
+      if (audioUrl) URL.revokeObjectURL(audioUrl);
+    };
+  }, [questionData?.question]);
 
   return (
     <div className="w-full bg-white rounded-2xl p-6 sm:p-8 border border-slate-200/80 shadow-2xs text-center space-y-4 relative">

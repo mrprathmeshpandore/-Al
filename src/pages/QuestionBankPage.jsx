@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, ChevronLeft, ChevronRight, Quote } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Quote, Loader2 } from 'lucide-react';
 import DashboardLayout from '../components/dashboard/DashboardLayout';
 import QuestionBankHeader from '../components/questionBank/QuestionBankHeader';
 import QuestionBankFilterPanel from '../components/questionBank/QuestionBankFilterPanel';
@@ -9,7 +9,7 @@ import QuestionBankStatsCard from '../components/questionBank/QuestionBankStatsC
 import PopularTopicsCard from '../components/questionBank/PopularTopicsCard';
 import StartPracticingCtaCard from '../components/questionBank/StartPracticingCtaCard';
 import QuestionDetailModal from '../components/questionBank/QuestionDetailModal';
-import { questionsList, questionBankStats } from '../data/questionBankData';
+import { questionsApi } from '../services/questionsApi';
 
 export default function QuestionBankPage() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -18,8 +18,41 @@ export default function QuestionBankPage() {
   const [selectedType, setSelectedType] = useState('all');
   const [sortBy, setSortBy] = useState('latest');
   const [currentPage, setCurrentPage] = useState(1);
-  const [questions, setQuestions] = useState(questionsList);
+  const [questions, setQuestions] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selectedQuestion, setSelectedQuestion] = useState(null);
+
+  useEffect(() => {
+    async function fetchBackendQuestions() {
+      try {
+        setLoading(true);
+        const data = await questionsApi.getQuestions({
+          category: selectedCategory !== 'all' ? selectedCategory : undefined,
+          difficulty: selectedDifficulty !== 'all' ? selectedDifficulty : undefined,
+          question_type: selectedType !== 'all' ? selectedType : undefined,
+        });
+        if (Array.isArray(data)) {
+          setQuestions(data.map(q => ({
+            id: q.id,
+            question: q.question_text,
+            description: q.explanation || q.why_this_matters || 'Practice answering with structured administrative rationale.',
+            category: q.category || q.subject || 'Polity & Governance',
+            difficulty: q.difficulty ? q.difficulty.charAt(0) + q.difficulty.slice(1).toLowerCase() : 'Moderate',
+            qType: q.question_type || 'MAIN',
+            isBookmarked: false,
+            tags: [q.subject || 'General Studies', q.topic || 'Governance'].filter(Boolean),
+            whyMatters: q.why_this_matters,
+            explanation: q.explanation,
+          })));
+        }
+      } catch (err) {
+        console.error('Failed to load questions:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchBackendQuestions();
+  }, [selectedCategory, selectedDifficulty, selectedType]);
 
   // INTERACTIVE BOOKMARK TOGGLE
   const handleToggleBookmark = (id) => {
@@ -31,7 +64,7 @@ export default function QuestionBankPage() {
     }
   };
 
-  // MULTI-FILTER & SEARCH LOGIC
+  // SEARCH FILTERING
   const filteredQuestions = useMemo(() => {
     return questions.filter(q => {
       const matchesSearch = !searchQuery.trim() ||
@@ -39,13 +72,9 @@ export default function QuestionBankPage() {
         q.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
         q.tags?.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
 
-      const matchesCategory = selectedCategory === 'all' || q.category === selectedCategory;
-      const matchesDifficulty = selectedDifficulty === 'all' || q.difficulty.toLowerCase() === selectedDifficulty;
-      const matchesType = selectedType === 'all' || q.qType === selectedType;
-
-      return matchesSearch && matchesCategory && matchesDifficulty && matchesType;
+      return matchesSearch;
     });
-  }, [questions, searchQuery, selectedCategory, selectedDifficulty, selectedType]);
+  }, [questions, searchQuery]);
 
   const handleResetFilters = () => {
     setSearchQuery('');
@@ -58,7 +87,6 @@ export default function QuestionBankPage() {
   return (
     <DashboardLayout>
       <div className="space-y-8">
-        
         {/* HEADER BANNER */}
         <QuestionBankHeader />
 
@@ -77,14 +105,12 @@ export default function QuestionBankPage() {
 
         {/* MAIN 2-COLUMN GRID */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          
           {/* LEFT MAIN AREA (8 cols on desktop) */}
           <div className="lg:col-span-8 space-y-6">
-            
             {/* STATUS HEADER & SORT DROPDOWN */}
             <div className="flex items-center justify-between pb-1">
               <span className="text-xs font-bold text-slate-600">
-                Showing 1–{filteredQuestions.length} of {questionBankStats.totalQuestions} questions
+                Showing 1–{filteredQuestions.length} of {questions.length} questions
               </span>
 
               <div className="flex items-center gap-2">
@@ -96,14 +122,18 @@ export default function QuestionBankPage() {
                 >
                   <option value="latest">Latest</option>
                   <option value="practiced">Most Practiced</option>
-                  <option value="saved">Most Saved</option>
                   <option value="difficulty">Difficulty</option>
                 </select>
               </div>
             </div>
 
             {/* QUESTION CARDS LIST */}
-            {filteredQuestions.length > 0 ? (
+            {loading ? (
+              <div className="p-12 text-center text-slate-500 font-semibold bg-white rounded-2xl border border-slate-200">
+                <Loader2 className="w-8 h-8 animate-spin text-[#0B1628] mx-auto mb-2" />
+                <p className="text-xs">Loading Question Bank from Backend...</p>
+              </div>
+            ) : filteredQuestions.length > 0 ? (
               <div className="space-y-4">
                 {filteredQuestions.map((q) => (
                   <QuestionCard
@@ -126,50 +156,12 @@ export default function QuestionBankPage() {
                 </button>
               </div>
             )}
-
-            {/* PAGINATION BAR */}
-            <div className="pt-4 flex items-center justify-between border-t border-slate-200/60">
-              <button
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-600 hover:text-[#0B1628] border border-slate-200 bg-white disabled:opacity-40 cursor-pointer flex items-center gap-1"
-              >
-                <ChevronLeft className="w-4 h-4" />
-                <span>Prev</span>
-              </button>
-
-              <div className="flex items-center gap-1">
-                {[1, 2, 3, 4, 5].map((pageNum) => (
-                  <button
-                    key={pageNum}
-                    onClick={() => setCurrentPage(pageNum)}
-                    className={`w-8 h-8 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                      currentPage === pageNum
-                        ? 'bg-[#0B1628] text-white shadow-2xs'
-                        : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200'
-                    }`}
-                  >
-                    {pageNum}
-                  </button>
-                ))}
-              </div>
-
-              <button
-                onClick={() => setCurrentPage(p => p + 1)}
-                className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-600 hover:text-[#0B1628] border border-slate-200 bg-white cursor-pointer flex items-center gap-1"
-              >
-                <span>Next</span>
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-
           </div>
 
           {/* RIGHT SIDEBAR (4 cols on desktop) */}
           <div className="lg:col-span-4 space-y-6">
-            
             {/* STATS CARD */}
-            <QuestionBankStatsCard />
+            <QuestionBankStatsCard totalCount={questions.length} />
 
             {/* POPULAR TOPICS WIDGET */}
             <PopularTopicsCard
@@ -190,9 +182,7 @@ export default function QuestionBankPage() {
               </p>
               <div className="w-8 h-1 bg-amber-500 rounded-full" />
             </div>
-
           </div>
-
         </div>
 
         {/* QUESTION DETAIL MODAL */}
@@ -205,7 +195,6 @@ export default function QuestionBankPage() {
             />
           )}
         </AnimatePresence>
-
       </div>
     </DashboardLayout>
   );

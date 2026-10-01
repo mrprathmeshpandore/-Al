@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Pause, Play, Clock, HelpCircle } from 'lucide-react';
-import { interviewSession } from '../../data/interviewData';
 
-export default function InterviewControlHeader() {
-  const [timeSeconds, setTimeSeconds] = useState(interviewSession.timeRemainingSeconds);
+export default function InterviewControlHeader({ currentIndex = 1, totalQuestions = 5 }) {
+  const [timeSeconds, setTimeSeconds] = useState(1800); // Default 30 mins
   const [isPaused, setIsPaused] = useState(false);
 
   useEffect(() => {
@@ -39,7 +38,7 @@ export default function InterviewControlHeader() {
         {/* QUOTE BOX (Hidden on small mobile) */}
         <div className="hidden lg:block text-right pr-2">
           <p className="text-[11.5px] italic font-semibold text-slate-700 font-serif">
-            {interviewSession.quote}
+            "An administrator must be completely neutral."
           </p>
         </div>
 
@@ -47,9 +46,9 @@ export default function InterviewControlHeader() {
         <div className="bg-[#0B1628] text-white px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-2xs">
           <span className="text-slate-400">Question</span>
           <span className="text-amber-400 font-black">
-            {interviewSession.currentQuestionIndex.toString().padStart(2, '0')}
+            {currentIndex.toString().padStart(2, '0')}
           </span>
-          <span className="text-slate-400">/ {interviewSession.totalQuestions}</span>
+          <span className="text-slate-400">/ {totalQuestions}</span>
         </div>
 
         {/* TIMER PILL */}
