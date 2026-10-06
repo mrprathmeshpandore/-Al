@@ -262,17 +262,85 @@ SAMPLE_UPSC_QUESTIONS = [
         "difficulty": "EASY",
         "explanation": "Analyzes Extended Producer Responsibility (EPR), biodegradable alternative subsidies, municipal enforcement, and LiFE movement nudges.",
         "why_this_matters": "Practical civic administration question."
+    },
+
+    # 7. Native Marathi UPSC Interview Questions (मराठी)
+    {
+        "text": "महाराष्ट्र प्रशासनात 'थेट लाभ हस्तांतरण' (DBT) आणि 'लोकसेवा हक्क कायदा' लागू करताना येणाऱ्या प्रमुख अडचणी कोणत्या आणि त्या कशा सोडवाल?",
+        "category": "GOVERNANCE",
+        "topic": "नागरी सेवा व लोकशासन",
+        "difficulty": "MODERATE",
+        "explanation": "प्रशासकीय पारदर्शकता, डिजिटल तंत्रज्ञान आणि तळागाळातील नागरिकांपर्यंत सेवा पोहोचवण्याचे मूल्यमापन करते.",
+        "why_this_matters": "प्रशासकीय सुशासन व सामाजिक कल्याण योजनेच्या अंमलबजावणीसाठी अत्यंत महत्त्वाचे."
+    },
+    {
+        "text": "एखाद्या जिल्ह्यात दुष्काळ आणि शेतकरी असंतोष निर्माण झाल्यास, जिल्हाधिकारी म्हणून तुम्ही कोणत्या अल्पकालीन आणि दीर्घकालीन उपाययोजना कराल?",
+        "category": "GOVERNANCE",
+        "topic": "जिल्हा प्रशासन व आपत्ती व्यवस्थापन",
+        "difficulty": "CHALLENGING",
+        "explanation": "आपत्कालीन रोजगार, पाणी टंचाई निवारण, पीक विमा आणि दीर्घकालीन जलसंधारण धोरणाचा अभ्यास करते.",
+        "why_this_matters": "शेतकरी कल्याण आणि आपत्ती व्यवस्थापनातील अधिकारी कौशल्याची चाचणी."
+    },
+    {
+        "text": "डिजिटल प्रशासनामुळे (E-Governance) ग्रामीण भागात पारदर्शकता कशी वाढवता येईल आणि डिजिटल तफावत (Digital Divide) कशी कमी कराल?",
+        "category": "GOVERNANCE",
+        "topic": "डिजिटल शासन व ग्रामीण विकास",
+        "difficulty": "MODERATE",
+        "explanation": "ग्रामीण भागातील डिजिटल साक्षरता, सीएससी केंद्र आणि लोककेंद्रित प्रशासनाचे विश्लेषण करते.",
+        "why_this_matters": "तंत्रज्ञानाचा सामाजिक न्यायासाठी वापर तपासणे."
+    },
+    {
+        "text": "नागरी सेवेतील अधिकाऱ्यांनी राजकीय तटस्थता (Political Neutrality) आणि घटनात्मक नैतिकता (Constitutional Morality) राखणे का गरजेचे आहे?",
+        "category": "ETHICS",
+        "topic": "प्रशासकीय नीतिमत्ता व राज्यघटना",
+        "difficulty": "CHALLENGING",
+        "explanation": "राजकीय दबावाखाली काम करताना घटनात्मक मूल्यांचे रक्षण करण्याचे महत्त्व अधोरेखित करते.",
+        "why_this_matters": "अधिकाऱ्याच्या नैतिक पायाचे मूल्यांकन."
+    },
+
+    # 8. Native Hindi UPSC Interview Questions (हिंदी)
+    {
+        "text": "लोक प्रशासन में पारदर्शिता और जवाबदेही बढ़ाने के लिए आप ई-गवर्नेंस और सूचना के अधिकार (RTI) का उपयोग कैसे करेंगे?",
+        "category": "GOVERNANCE",
+        "topic": "लोक प्रशासन और पारदर्शिता",
+        "difficulty": "MODERATE",
+        "explanation": "सूचना की पारदर्शिता, प्रशासनिक दक्षता और नागरिक-केंद्रित सेवाओं का मूल्यांकन करता है।",
+        "why_this_matters": "सुशासन और भ्रष्टाचार निवारण के लिए आवश्यक।"
+    },
+    {
+        "text": "एक जिला मजिस्ट्रेट के रूप में, आप कृषि संकट और भूमि अधिग्रहण विवाद को कानून व्यवस्था बनाए रखते हुए कैसे सुलझाएंगे?",
+        "category": "SECURITY",
+        "topic": "जिला प्रशासन और विवाद निवारण",
+        "difficulty": "CHALLENGING",
+        "explanation": "किसान हितधारकों के साथ संवाद, उचित मुआवजा और ढांचागत विकास के संतुलन को परखता है।",
+        "why_this_matters": "प्रशासनिक मध्यस्थता और नेतृत्व क्षमता की परीक्षा।"
+    },
+    {
+        "text": "सिविल सेवाओं में तटस्थता और वस्तुनिष्ठता (Neutrality & Objectivity) का क्या महत्व है? राजनीतिक दबाव के समय आप संविधान का पालन कैसे सुनिश्चित करेंगे?",
+        "category": "ETHICS",
+        "topic": "प्रशासनिक नैतिकता और संवैधानिक मूल्य",
+        "difficulty": "HARD",
+        "explanation": "संवैधानिक नैतिकता, निष्पक्ष निर्णय लेने की क्षमता और सत्यनिष्ठा का विश्लेषण करता है।",
+        "why_this_matters": "लोक सेवक के नैतिक चरित्र का परीक्षण।"
+    },
+    {
+        "text": "डिजिटल डिवाइड को समाप्त करते हुए दूरदराज के क्षेत्रों में प्रत्यक्ष लाभ अंतरण (DBT) की 100% पहुंच कैसे सुनिश्चित की जा सकती है?",
+        "category": "GOVERNANCE",
+        "topic": "डिजिटल समावेश और कल्याणकारी योजनाएं",
+        "difficulty": "MODERATE",
+        "explanation": "डिजिटल साक्षरता, कॉमन सर्विस सेंटर और बायोमेट्रिक अपवाद हैंडलिंग पर जोर देता है।",
+        "why_this_matters": "अंतिम व्यक्ति तक योजना पहुंचाने की प्रतिबद्धता।"
     }
 ]
 
 
 def seed_questions():
+    from app.core.database import Base, engine
+    Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
         user = db.query(User).first()
-        if not user:
-            print("Error: No user found in database.")
-            return
+        user_id = user.id if user else None
 
         # Delete existing exact duplicates of e-governance question
         egov_questions = db.query(InterviewQuestion).filter(
@@ -294,7 +362,7 @@ def seed_questions():
             if clean_t not in existing_texts:
                 new_q = InterviewQuestion(
                     id=str(uuid.uuid4()),
-                    user_id=user.id,
+                    user_id=user_id,
                     question_text=item["text"],
                     question_type="MAIN",
                     category=item["category"],

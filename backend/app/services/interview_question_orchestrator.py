@@ -119,6 +119,7 @@ class InterviewQuestionOrchestrator:
             difficulty=difficulty,
             category=category,
             topic=topic,
+            language=session.language,
         )
         if bank_question:
             return self._adapt_question_language(bank_question, session.language)
@@ -207,7 +208,11 @@ class InterviewQuestionOrchestrator:
         difficulty: str,
         category: Optional[str],
         topic: Optional[str],
+        language: str = "en-IN",
     ) -> Optional[InterviewQuestion]:
+        clean_lang = (language or "en-IN").lower()
+        is_target_devanagari = ("mr" in clean_lang or "marathi" in clean_lang or "hi" in clean_lang or "hindi" in clean_lang)
+
         query = self.db.query(InterviewQuestion).filter(
             or_(InterviewQuestion.user_id == user_id, InterviewQuestion.user_id.is_(None))
         )
@@ -221,6 +226,15 @@ class InterviewQuestionOrchestrator:
             query = query.filter(InterviewQuestion.topic.ilike(f"%{topic}%"))
 
         candidates = query.order_by(func.random()).limit(50).all()
+
+        # FAST PASS: If target language is Marathi/Hindi, prioritize candidates that are ALREADY in Devanagari or pre-adapted!
+        if is_target_devanagari:
+            for q in candidates:
+                if normalize_q_text(q.question_text) not in existing_texts:
+                    if re.search(r'[\u0900-\u097F]', q.question_text or "") or (q.personalization_label and "adapted_from:" in q.personalization_label):
+                        return q
+
+        # Standard Pass
         for q in candidates:
             if normalize_q_text(q.question_text) not in existing_texts:
                 return q
@@ -233,6 +247,12 @@ class InterviewQuestionOrchestrator:
             relaxed_query = relaxed_query.filter(InterviewQuestion.id.notin_(existing_ids))
         
         relaxed_candidates = relaxed_query.order_by(func.random()).limit(100).all()
+        if is_target_devanagari:
+            for q in relaxed_candidates:
+                if normalize_q_text(q.question_text) not in existing_texts:
+                    if re.search(r'[\u0900-\u097F]', q.question_text or "") or (q.personalization_label and "adapted_from:" in q.personalization_label):
+                        return q
+
         for q in relaxed_candidates:
             if normalize_q_text(q.question_text) not in existing_texts:
                 return q
