@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Pause, Play, Clock, ShieldCheck, Zap, RefreshCw, Globe } from 'lucide-react';
+import { Pause, Play, Clock, ShieldCheck, Zap, RefreshCw } from 'lucide-react';
+import GlassLanguageSelector from '../common/GlassLanguageSelector';
 
 export default function InterviewControlHeader({ 
   currentIndex = 1, 
@@ -43,20 +44,11 @@ export default function InterviewControlHeader({
       {/* RIGHT CONTROLS: MODE TOGGLE, LANGUAGE, QUESTION COUNTER, TIMER */}
       <div className="flex flex-wrap items-center gap-2.5">
         
-        {/* MULTILINGUAL LANGUAGE SELECTOR */}
-        <div className="bg-white border border-slate-200 p-1 rounded-xl flex items-center gap-1 text-xs shadow-2xs">
-          <Globe className="w-3.5 h-3.5 text-amber-600 ml-1 shrink-0" />
-          <select
-            value={selectedLanguage}
-            onChange={(e) => onLanguageChange && onLanguageChange(e.target.value)}
-            className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer text-xs pr-1 py-0.5"
-            title="Select Interview Language (English, मराठी, हिंदी)"
-          >
-            <option value="en-IN">🇬🇧 English</option>
-            <option value="mr-IN">🇮🇳 मराठी</option>
-            <option value="hi-IN">🇮🇳 हिंदी</option>
-          </select>
-        </div>
+        {/* MULTILINGUAL GLASS LANGUAGE SELECTOR */}
+        <GlassLanguageSelector 
+          selectedLanguage={selectedLanguage} 
+          onLanguageChange={onLanguageChange} 
+        />
 
         {/* HYBRID FEEDBACK MODE TOGGLE */}
         <div className="bg-slate-100 p-1 rounded-xl flex items-center gap-1 border border-slate-200 text-xs">
