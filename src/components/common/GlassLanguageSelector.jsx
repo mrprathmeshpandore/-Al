@@ -2,10 +2,51 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, Check } from 'lucide-react';
 
+const UKFlag = () => (
+  <svg className="w-5 h-3.5 rounded-[2px] shadow-2xs shrink-0 object-cover border border-slate-200/40" viewBox="0 0 60 30" aria-hidden="true">
+    <clipPath id="uk-clip">
+      <rect width="60" height="30" rx="2" />
+    </clipPath>
+    <g clipPath="url(#uk-clip)">
+      <rect width="60" height="30" fill="#012169" />
+      <path d="M0,0 L60,30 M60,0 L0,30" stroke="#fff" strokeWidth="6"/>
+      <path d="M0,0 L60,30 M60,0 L0,30" stroke="#C8102E" strokeWidth="4"/>
+      <path d="M30,0 V30 M0,15 H60" stroke="#fff" strokeWidth="10"/>
+      <path d="M30,0 V30 M0,15 H60" stroke="#C8102E" strokeWidth="6"/>
+    </g>
+  </svg>
+);
+
+const IndiaFlag = () => (
+  <svg className="w-5 h-3.5 rounded-[2px] shadow-2xs shrink-0 object-cover border border-slate-200/40" viewBox="0 0 60 40" aria-hidden="true">
+    <clipPath id="in-clip">
+      <rect width="60" height="40" rx="2" />
+    </clipPath>
+    <g clipPath="url(#in-clip)">
+      <rect width="60" height="13.33" fill="#FF9933" />
+      <rect y="13.33" width="60" height="13.33" fill="#FFFFFF" />
+      <rect y="26.66" width="60" height="13.34" fill="#138808" />
+      <circle cx="30" cy="20" r="4.5" fill="none" stroke="#000080" strokeWidth="0.8" />
+      <circle cx="30" cy="20" r="0.8" fill="#000080" />
+      {[...Array(12)].map((_, i) => (
+        <line
+          key={i}
+          x1={30 + 4.5 * Math.cos((i * Math.PI) / 6)}
+          y1={20 + 4.5 * Math.sin((i * Math.PI) / 6)}
+          x2={30 - 4.5 * Math.cos((i * Math.PI) / 6)}
+          y2={20 - 4.5 * Math.sin((i * Math.PI) / 6)}
+          stroke="#000080"
+          strokeWidth="0.4"
+        />
+      ))}
+    </g>
+  </svg>
+);
+
 const LANGUAGES = [
-  { code: 'en-IN', name: 'English', flag: '🇬🇧' },
-  { code: 'mr-IN', name: 'मराठी', flag: '🇮🇳' },
-  { code: 'hi-IN', name: 'हिंदी', flag: '🇮🇳' },
+  { code: 'en-IN', name: 'English', FlagComponent: UKFlag },
+  { code: 'mr-IN', name: 'मराठी', FlagComponent: IndiaFlag },
+  { code: 'hi-IN', name: 'हिंदी', FlagComponent: IndiaFlag },
 ];
 
 export default function GlassLanguageSelector({ selectedLanguage = 'en-IN', onLanguageChange }) {
@@ -14,6 +55,7 @@ export default function GlassLanguageSelector({ selectedLanguage = 'en-IN', onLa
 
   // Find currently active language object
   const currentLang = LANGUAGES.find((l) => l.code === selectedLanguage) || LANGUAGES[0];
+  const CurrentFlag = currentLang.FlagComponent;
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -48,8 +90,8 @@ export default function GlassLanguageSelector({ selectedLanguage = 'en-IN', onLa
         }`}
         title="Select Interview Language"
       >
-        <div className="flex items-center gap-1.5 relative z-10">
-          <span className="text-sm leading-none select-none">{currentLang.flag}</span>
+        <div className="flex items-center gap-2 relative z-10">
+          <CurrentFlag />
           <span className="font-bold tracking-tight text-[#0B1628]">{currentLang.name}</span>
         </div>
 
@@ -77,6 +119,7 @@ export default function GlassLanguageSelector({ selectedLanguage = 'en-IN', onLa
 
             {LANGUAGES.map((lang) => {
               const isSelected = lang.code === selectedLanguage;
+              const Flag = lang.FlagComponent;
               return (
                 <button
                   key={lang.code}
@@ -91,7 +134,7 @@ export default function GlassLanguageSelector({ selectedLanguage = 'en-IN', onLa
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <span className="text-sm leading-none select-none">{lang.flag}</span>
+                    <Flag />
                     <span className="font-bold tracking-tight">{lang.name}</span>
                   </div>
 
