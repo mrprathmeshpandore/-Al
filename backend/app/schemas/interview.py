@@ -18,7 +18,7 @@ class InterviewStartRequest(BaseModel):
 
 
 class AnswerSubmitRequest(BaseModel):
-    answer_text: str = Field(..., min_length=1, max_length=10000, description="Candidate answer text")
+    answer_text: str = Field(..., min_length=1, max_length=50000, description="Candidate answer text")
     answer_duration_seconds: int = Field(default=0, ge=0, description="Answer duration in seconds")
 
 

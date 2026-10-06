@@ -7,12 +7,16 @@ import QuestionMetadataCard from '../components/interview/QuestionMetadataCard';
 import InterviewProgressCard from '../components/interview/InterviewProgressCard';
 import AnswerArea from '../components/interview/AnswerArea';
 import InterviewTipsCard from '../components/interview/InterviewTipsCard';
+import InterviewReportModal from '../components/interview/InterviewReportModal';
 import { 
   startInterview, 
   getInterviewSession,
   getNextInterviewQuestion, 
   submitInterviewAnswer, 
-  evaluateInterviewAnswer 
+  evaluateInterviewAnswer,
+  completeInterview,
+  skipInterviewQuestion,
+  getInterviewSessionReport
 } from '../services/interviewApi';
 
 
@@ -24,30 +28,36 @@ export default function InterviewPage() {
   const [totalQuestions, setTotalQuestions] = useState(5);
   const [currentIndex, setCurrentIndex] = useState(1);
   const [sessionError, setSessionError] = useState(null);
+  const [selectedLanguage, setSelectedLanguage] = useState(() => localStorage.getItem('prashasak_interview_language') || 'en-IN');
+
+  // Report Modal State
+  const [reportData, setReportData] = useState(null);
+  const [isReportOpen, setIsReportOpen] = useState(false);
+  const [feedbackMode, setFeedbackMode] = useState('REAL_BOARD'); // 'REAL_BOARD' | 'INSTANT_PRACTICE'
 
   useEffect(() => {
     async function initSession() {
       try {
         let session;
         const savedSessionId = localStorage.getItem('prashasak_current_interview_session');
+        const lang = localStorage.getItem('prashasak_interview_language') || 'en-IN';
         
         if (savedSessionId) {
           try {
             session = await getInterviewSession(savedSessionId);
-            // If the session is completed, we should probably start a new one, but for now we just load it
             if (session.status === 'COMPLETED' || session.status === 'ABANDONED') {
-                session = await startInterview({ interview_type: 'FULL_INTERVIEW', total_questions: 5 });
-                localStorage.setItem('prashasak_current_interview_session', session.session_id);
+              session = await startInterview({ interview_type: 'FULL_INTERVIEW', total_questions: 5, language: lang });
+              localStorage.setItem('prashasak_current_interview_session', session.session_id);
             }
           } catch (e) {
-            // Invalid or expired session ID
-            session = await startInterview({ interview_type: 'FULL_INTERVIEW', total_questions: 5 });
+            session = await startInterview({ interview_type: 'FULL_INTERVIEW', total_questions: 5, language: lang });
             localStorage.setItem('prashasak_current_interview_session', session.session_id);
           }
         } else {
           session = await startInterview({
             interview_type: 'FULL_INTERVIEW',
             total_questions: 5,
+            language: lang,
           });
           localStorage.setItem('prashasak_current_interview_session', session.session_id);
         }
@@ -55,20 +65,23 @@ export default function InterviewPage() {
         console.log("INTERVIEW API RESPONSE:", session);
 
         setSessionId(session.session_id);
+        if (session.language) {
+          setSelectedLanguage(session.language);
+        }
         if (session.total_questions) {
-            setTotalQuestions(session.total_questions);
+          setTotalQuestions(session.total_questions);
         }
         if (session.current_question_index) {
-            setCurrentIndex(session.current_question_index);
+          setCurrentIndex(session.current_question_index);
         }
         if (session.questions) {
-            setSessionQuestions(session.questions);
+          setSessionQuestions(session.questions);
         }
         
         if (session.current_question) {
           setCurrentQuestion({
             ...session.current_question,
-            question: session.current_question.text, // Map backend 'text' to frontend 'question'
+            question: session.current_question.text,
             promptText: session.current_question.explanation || session.current_question.why_this_matters || "Take your time to think and answer.",
             typeLabel: session.current_question.type
           });
@@ -77,24 +90,56 @@ export default function InterviewPage() {
         setInterviewState('IDLE');
       } catch (err) {
         console.error("Failed to start/load interview session", err);
-        setSessionError(err.message || "Failed to start interview session.");
+        const errMsg = typeof err === 'string' ? err : (err?.message || "Failed to start interview session.");
+        setSessionError(typeof errMsg === 'string' ? errMsg : String(errMsg));
         setInterviewState('IDLE');
       }
     }
     initSession();
   }, []);
 
+  const finishInterviewSession = async (activeSessionId) => {
+    const targetSessionId = activeSessionId || sessionId;
+    if (!targetSessionId) return;
+    setInterviewState('LOADING');
+    setIsReportOpen(true);
+    try {
+      await completeInterview(targetSessionId);
+      const report = await getInterviewSessionReport(targetSessionId);
+      setReportData(report);
+    } catch (err) {
+      console.error("Failed to generate report", err);
+    } finally {
+      setInterviewState('IDLE');
+    }
+  };
+
   const handleNextQuestion = async () => {
     if (!sessionId) return;
+    
+    // If we reached or exceeded total questions limit, finish session and show report!
+    if (currentIndex >= totalQuestions) {
+      await finishInterviewSession(sessionId);
+      return;
+    }
+
     setInterviewState('LOADING');
     try {
-      const nextQRes = await getNextInterviewQuestion(sessionId);
+      let nextQRes;
+      try {
+        nextQRes = await getNextInterviewQuestion(sessionId);
+      } catch (e) {
+        // Fail-safe: Auto-skip current question on backend if not answered in DB
+        await skipInterviewQuestion(sessionId);
+        nextQRes = await getNextInterviewQuestion(sessionId);
+      }
+
       if (nextQRes.questions) {
-          setSessionQuestions(nextQRes.questions);
+        setSessionQuestions(nextQRes.questions);
       }
       if (nextQRes.progress) {
-          setCurrentIndex(nextQRes.progress.current);
-          setTotalQuestions(nextQRes.progress.total);
+        setCurrentIndex(nextQRes.progress.current);
+        setTotalQuestions(nextQRes.progress.total);
       }
       setCurrentQuestion({
         ...nextQRes.question,
@@ -103,10 +148,33 @@ export default function InterviewPage() {
         typeLabel: nextQRes.question.type
       });
     } catch (err) {
-      console.error("Failed to fetch next question", err);
-      // Just keep current question on error
+      console.error("Failed to fetch next question, completing session:", err);
+      await finishInterviewSession(sessionId);
     } finally {
       setInterviewState('IDLE');
+    }
+  };
+
+  const handleSkipQuestion = async () => {
+    if (!sessionId) return;
+    try {
+      await skipInterviewQuestion(sessionId);
+      setSessionQuestions(prev => prev.map(q => 
+        q.sequence_number === currentIndex ? { ...q, question_status: 'SKIPPED' } : q
+      ));
+
+      if (currentIndex >= totalQuestions) {
+        await finishInterviewSession(sessionId);
+      } else {
+        await handleNextQuestion();
+      }
+    } catch (err) {
+      console.error("Failed to skip question", err);
+      if (currentIndex >= totalQuestions) {
+        await finishInterviewSession(sessionId);
+      } else {
+        await handleNextQuestion();
+      }
     }
   };
 
@@ -121,7 +189,7 @@ export default function InterviewPage() {
     
     // Update local question status to answered so progress card updates immediately
     setSessionQuestions(prev => prev.map(q => 
-        q.sequence_number === currentIndex ? { ...q, question_status: 'ANSWERED' } : q
+      q.sequence_number === currentIndex ? { ...q, question_status: 'ANSWERED' } : q
     ));
     
     // Evaluate answer
@@ -129,12 +197,62 @@ export default function InterviewPage() {
     return evalRes;
   };
 
+  const handleStartNewSession = async (targetLang = null) => {
+    setIsReportOpen(false);
+    setReportData(null);
+    setInterviewState('LOADING');
+    setSessionError(null);
+    const langToUse = (typeof targetLang === 'string' && targetLang) ? targetLang : (selectedLanguage || 'en-IN');
+    try {
+      const session = await startInterview({
+        interview_type: 'FULL_INTERVIEW',
+        total_questions: 5,
+        language: langToUse,
+      });
+      localStorage.setItem('prashasak_current_interview_session', session.session_id);
+      localStorage.setItem('prashasak_interview_language', langToUse);
+      setSessionId(session.session_id);
+      setSelectedLanguage(session.language || langToUse);
+      setTotalQuestions(session.total_questions || 5);
+      setCurrentIndex(1);
+      setSessionQuestions(session.questions || []);
+      if (session.current_question) {
+        setCurrentQuestion({
+          ...session.current_question,
+          question: session.current_question.text,
+          promptText: session.current_question.explanation || session.current_question.why_this_matters || "Take your time to think and answer.",
+          typeLabel: session.current_question.type
+        });
+      }
+    } catch (err) {
+      console.error("Failed to start new session", err);
+      const errMsg = typeof err === 'string' ? err : (err?.message || "Failed to start new interview session.");
+      setSessionError(typeof errMsg === 'string' ? errMsg : String(errMsg));
+    } finally {
+      setInterviewState('IDLE');
+    }
+  };
+
+  const handleLanguageChange = async (newLang) => {
+    setSelectedLanguage(newLang);
+    localStorage.setItem('prashasak_interview_language', newLang);
+    await handleStartNewSession(newLang);
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
         
         {/* TOP CONTROL HEADER */}
-        <InterviewControlHeader />
+        <InterviewControlHeader 
+          currentIndex={currentIndex} 
+          totalQuestions={totalQuestions} 
+          feedbackMode={feedbackMode}
+          onToggleFeedbackMode={(mode) => setFeedbackMode(mode)}
+          selectedLanguage={selectedLanguage}
+          onLanguageChange={handleLanguageChange}
+          onStartNewSession={handleStartNewSession}
+        />
 
         {/* MAIN 2-COLUMN LAYOUT */}
         {sessionError ? (
@@ -146,7 +264,7 @@ export default function InterviewPage() {
                 localStorage.removeItem('prashasak_current_interview_session');
                 window.location.reload();
               }}
-              className="mt-4 px-6 py-2 bg-red-600 text-white rounded-full font-bold hover:bg-red-700"
+              className="mt-4 px-6 py-2 bg-red-600 text-white rounded-full font-bold hover:bg-red-700 cursor-pointer"
             >
               Start New Session
             </button>
@@ -177,10 +295,15 @@ export default function InterviewPage() {
             {/* ANSWER CONTROLS & STATE MACHINE */}
             {currentQuestion && (
               <AnswerArea 
+                key={currentQuestion.id || currentIndex}
                 onStateChange={(state) => setInterviewState(state)}
                 onNextQuestion={handleNextQuestion}
                 onSubmitAnswer={handleSubmitAnswer}
+                onSkipQuestion={handleSkipQuestion}
+                onStartNewSession={handleStartNewSession}
                 currentQuestionText={currentQuestion.question}
+                sessionLanguage={selectedLanguage}
+                feedbackMode={feedbackMode}
               />
             )}
 
@@ -198,9 +321,9 @@ export default function InterviewPage() {
 
             {/* INTERVIEW PROGRESS FLOW */}
             <InterviewProgressCard 
-                questions={sessionQuestions}
-                totalQuestions={totalQuestions}
-                currentIndex={currentIndex}
+              questions={sessionQuestions}
+              totalQuestions={totalQuestions}
+              currentIndex={currentIndex}
             />
 
             {/* TIPS FOR BETTER ANSWER */}
@@ -210,6 +333,14 @@ export default function InterviewPage() {
 
         </div>
         )}
+
+        {/* 5-MINUTE COMPREHENSIVE PERFORMANCE SUMMARY REPORT MODAL */}
+        <InterviewReportModal 
+          isOpen={isReportOpen}
+          onClose={() => setIsReportOpen(false)}
+          reportData={reportData}
+          onStartNewSession={handleStartNewSession}
+        />
 
       </div>
     </DashboardLayout>

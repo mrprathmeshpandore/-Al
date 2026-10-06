@@ -11,7 +11,7 @@ class FakeSpeechToTextProvider(BaseSpeechToTextProvider):
         self.fail_mode = fail_mode
 
     def transcribe(
-        self, audio_bytes: bytes, language: Optional[str] = None
+        self, audio_bytes: bytes, language: Optional[str] = None, mime_type: Optional[str] = None
     ) -> Dict[str, Any]:
         if self.fail_mode:
             raise RuntimeError("STT provider failure simulated.")
@@ -27,10 +27,14 @@ class FakeSpeechToTextProvider(BaseSpeechToTextProvider):
         # Estimate duration based on byte size assuming ~16KB per sec
         estimated_duration = max(1, min(180, int(len(audio_bytes) / 16000)))
 
-        text = (
-            self.default_text
-            or "India's federal structure ensures dynamic balance between central authority and state autonomy in governance and policy implementation."
-        )
+        if self.default_text:
+            text = self.default_text
+        elif language and ("mr" in language.lower() or "marathi" in language.lower()):
+            text = "भारताच्या लोकप्रशासनात पारदर्शकता आणि नागरिक सेवा सुधारणे अत्यंत आवश्यक आहे."
+        elif language and ("hi" in language.lower() or "hindi" in language.lower()):
+            text = "भारत के लोक प्रशासन में पारदर्शिता और नागरिक सेवा वितरण सुनिश्चित करना आवश्यक है।"
+        else:
+            text = "India's federal structure ensures dynamic balance between central authority and state autonomy in governance and policy implementation."
 
         return {
             "text": text,

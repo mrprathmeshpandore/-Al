@@ -66,11 +66,18 @@ class GeminiEmbeddingProvider(BaseEmbeddingProvider):
     Production Embedding Provider using Google Gemini REST / SDK API.
     Supports batching, exponential backoff retries for rate limits (429/5xx), and vector dimension validation.
     """
+    _http_client: Optional[httpx.Client] = None
 
     def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None, vector_dim: Optional[int] = None):
         self.api_key = api_key or settings.GEMINI_API_KEY
         self.model = model or settings.GEMINI_EMBEDDING_MODEL
         self.vector_dim = vector_dim or settings.EMBEDDING_DIMENSION
+
+    @classmethod
+    def _get_http_client(cls) -> httpx.Client:
+        if cls._http_client is None or cls._http_client.is_closed:
+            cls._http_client = httpx.Client(timeout=30.0, limits=httpx.Limits(max_keepalive_connections=20, max_connections=50))
+        return cls._http_client
 
     def _call_gemini_batch_api(self, texts: List[str]) -> List[List[float]]:
         """Invokes Gemini Embedding API via HTTP/SDK with retries and exponential backoff."""
@@ -93,8 +100,8 @@ class GeminiEmbeddingProvider(BaseEmbeddingProvider):
 
         for attempt in range(max_retries):
             try:
-                with httpx.Client(timeout=30.0) as client:
-                    response = client.post(url, json={"requests": requests_payload})
+                client = self._get_http_client()
+                response = client.post(url, json={"requests": requests_payload})
 
                 if response.status_code == 200:
                     data = response.json()
@@ -102,7 +109,6 @@ class GeminiEmbeddingProvider(BaseEmbeddingProvider):
                     results = []
                     for item in embeddings_raw:
                         vec = item.get("values", [])
-                        # Ensure output matches target dimension
                         if len(vec) > self.vector_dim:
                             vec = vec[:self.vector_dim]
                         elif len(vec) < self.vector_dim and len(vec) > 0:
@@ -115,12 +121,11 @@ class GeminiEmbeddingProvider(BaseEmbeddingProvider):
                     time.sleep(backoff)
                     backoff *= 2.0
                 else:
-                    logger.error(f"Gemini API error {response.status_code}: {response.text}")
+                    logger.warning(f"Gemini API error {response.status_code} (non-retryable): {response.text[:200]}. Falling back.")
                     break
             except Exception as e:
-                logger.error(f"Network error calling Gemini API (attempt {attempt+1}): {e}")
-                time.sleep(backoff)
-                backoff *= 2.0
+                logger.warning(f"Network error calling Gemini API (attempt {attempt+1}): {e}")
+                break
 
         # Fallback to FakeEmbeddingProvider if API attempts fail
         logger.error("All Gemini API attempts failed. Using fallback embedding provider.")
@@ -146,11 +151,20 @@ class GeminiEmbeddingProvider(BaseEmbeddingProvider):
         return all_embeddings
 
 
-def get_embedding_provider(force_fake: bool = False) -> BaseEmbeddingProvider:
+_cached_embedding_provider: Optional[BaseEmbeddingProvider] = None
+
+def get_embedding_provider(force_fake: bool = False, custom_fake: Optional[FakeEmbeddingProvider] = None) -> BaseEmbeddingProvider:
     """
     Factory function returning the active embedding provider.
+    Caches provider globally to eliminate instantiation overhead.
     Returns GeminiEmbeddingProvider if GEMINI_API_KEY is configured, else FakeEmbeddingProvider.
     """
+    global _cached_embedding_provider
+    if custom_fake:
+        return custom_fake
     if force_fake or not settings.GEMINI_API_KEY:
         return FakeEmbeddingProvider()
-    return GeminiEmbeddingProvider()
+    
+    if _cached_embedding_provider is None:
+        _cached_embedding_provider = GeminiEmbeddingProvider()
+    return _cached_embedding_provider

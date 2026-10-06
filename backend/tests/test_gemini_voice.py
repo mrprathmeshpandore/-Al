@@ -70,22 +70,22 @@ def test_tts_success(gemini_tts):
 
 def test_tts_gemini_failure(gemini_tts):
     gemini_tts.client.models.generate_content.side_effect = Exception("Service Unavailable")
-    
-    with pytest.raises(RuntimeError) as exc:
-        gemini_tts.synthesize("Hello world")
-    assert "Failed to synthesize speech" in str(exc.value)
+    with patch("gtts.gTTS", side_effect=Exception("gTTS Unavailable")):
+        with pytest.raises(RuntimeError) as exc:
+            gemini_tts.synthesize("Hello world")
+        assert "Failed to synthesize speech" in str(exc.value)
 
 def test_tts_rate_limit(gemini_tts):
     gemini_tts.client.models.generate_content.side_effect = Exception("Rate Limit Exceeded")
-    
-    with pytest.raises(RuntimeError) as exc:
-        gemini_tts.synthesize("Hello world")
-    assert "Failed to synthesize speech" in str(exc.value)
+    with patch("gtts.gTTS", side_effect=Exception("gTTS Unavailable")):
+        with pytest.raises(RuntimeError) as exc:
+            gemini_tts.synthesize("Hello world")
+        assert "Failed to synthesize speech" in str(exc.value)
 
 def test_tts_timeout(gemini_tts):
     import requests
     gemini_tts.client.models.generate_content.side_effect = requests.exceptions.Timeout("Connection timed out")
-    
-    with pytest.raises(RuntimeError) as exc:
-        gemini_tts.synthesize("Hello world")
-    assert "Failed to synthesize speech" in str(exc.value)
+    with patch("gtts.gTTS", side_effect=Exception("gTTS Unavailable")):
+        with pytest.raises(RuntimeError) as exc:
+            gemini_tts.synthesize("Hello world")
+        assert "Failed to synthesize speech" in str(exc.value)

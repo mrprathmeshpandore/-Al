@@ -130,3 +130,20 @@ def test_get_me_authorized():
 def test_get_me_unauthorized():
     response = client.get("/api/auth/me")
     assert response.status_code == 401
+
+
+def test_google_login_mock(monkeypatch):
+    # Mock Google Token Verification
+    mock_data = {
+        "email": "googleuser@example.com",
+        "name": "Google Aspirant",
+        "sub": "google-123456789"
+    }
+    monkeypatch.setattr("google.oauth2.id_token.verify_oauth2_token", lambda token, req, audience: mock_data)
+
+    response = client.post("/api/auth/google", json={"credential": "mock_google_id_token_xyz"})
+    assert response.status_code == 200
+    data = response.json()
+    assert "access_token" in data
+    assert data["user"]["email"] == "googleuser@example.com"
+    assert data["user"]["full_name"] == "Google Aspirant"

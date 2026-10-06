@@ -13,7 +13,8 @@ export const voiceApi = {
   async transcribeAudio(audioBlob, language = 'en-IN') {
     const token = localStorage.getItem('prashasak_auth_token');
     const formData = new FormData();
-    formData.append('audio', audioBlob, 'recording.wav');
+    const ext = audioBlob.type.includes('webm') ? 'webm' : audioBlob.type.includes('ogg') ? 'ogg' : 'wav';
+    formData.append('audio', audioBlob, `recording.${ext}`);
     if (language) {
       formData.append('language', language);
     }

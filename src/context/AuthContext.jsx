@@ -73,6 +73,18 @@ export function AuthProvider({ children }) {
     return response;
   };
 
+  // Google Login Action
+  const googleLogin = async (credential) => {
+    const response = await authApi.googleLogin(credential);
+    const { access_token, user: loggedUser } = response;
+    authApi.setToken(access_token);
+    setTokenState(access_token);
+    setUser(loggedUser);
+    localStorage.setItem('prashasak_user', JSON.stringify(loggedUser));
+    setIsAuthModalOpen(false);
+    return response;
+  };
+
   // Register Action
   const register = async (email, fullName, password) => {
     const newUser = await authApi.register(email, fullName, password);
@@ -85,6 +97,8 @@ export function AuthProvider({ children }) {
     authApi.removeToken();
     setUser(null);
     setTokenState(null);
+    setIsAuthModalOpen(false);
+    window.location.href = '/';
   }, []);
 
   // Auth Modal Triggers
@@ -103,6 +117,7 @@ export function AuthProvider({ children }) {
     isAuthenticated: !!user && !!token,
     loading,
     login,
+    googleLogin,
     register,
     logout,
     isAuthModalOpen,

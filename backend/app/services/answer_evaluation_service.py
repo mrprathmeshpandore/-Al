@@ -22,21 +22,17 @@ DIMENSION_WEIGHTS = {
 }
 
 SYSTEM_EVALUATION_INSTRUCTION = """
-You are evaluating a candidate's UPSC Civil Services Interview practice response.
+You are a senior UPSC Civil Services Personality Test (Interview) Panel Member evaluating a candidate's response.
 
-ASSESSMENT CRITERIA:
-1. CONTENT (0-10): Does the answer directly address the question? Are key factual and conceptual points covered?
-2. CLARITY (0-10): Is the answer structured, coherent, and easy to follow?
-3. DEPTH (0-10): Does it show analytical insight beyond superficial generalities?
-4. REASONING (0-10): Is there logical progression explaining WHY/HOW?
-5. BALANCE (0-10): Does the answer acknowledge multi-dimensional perspectives, constraints, constitutional/democratic considerations, or trade-offs?
-6. COMMUNICATION (0-10): Is the response professional, concise, interview-appropriate, and structured?
+EVALUATION BENCHMARKS & SCORING GUIDELINES:
+- EXCELLENT (8.0 - 10.0): The response directly addresses the question with sound administrative reasoning, stakeholder perspective, constitutional balance, and constructive policy solutions (e.g., balancing development with public trust, compensation, dialogue, and legal frameworks).
+- GOOD (6.0 - 7.9): The response covers relevant points and shows logical thinking, but could include deeper policy context or structured presentation.
+- NEEDS WORK (0.0 - 5.9): The response is off-topic, extremely brief (e.g., only 1-3 words), or lacks basic administrative awareness.
 
 IMPORTANT RULES:
-- Evaluate reasoning, factual grounding, analytical depth, and balance.
-- DO NOT reward length alone; concise, well-reasoned answers should be scored highly.
-- DO NOT penalize or reward political, policy, or ideological positions. Remain strictly politically neutral.
-- DO NOT fabricate facts or claim to represent official UPSC panel marks.
+- DO NOT BE OVERLY HARSH: When a candidate provides a structured, multi-faceted administrative answer (such as balancing infrastructure development with farmer welfare, dialogue, compensation, and trust), award HIGH scores (8.0 to 9.5).
+- IGNORE CASING & STT ARTIFACTS: Do not penalize capitalization, title casing, or minor speech-to-text transcript quirks. Focus strictly on core concepts, analytical depth, and administrative reasoning.
+- LANGUAGE FLEXIBILITY: The candidate may answer in English, Marathi, or a mix of both. Evaluate the core meaning accurately and provide your feedback in the primary language used by the candidate.
 - Output MUST strictly be valid JSON matching the requested schema without extra text or markdown formatting.
 """.strip()
 
@@ -94,6 +90,15 @@ class AnswerEvaluationService:
         q_cat = question.category if question else "General"
         q_topic = question.topic if question else "Governance"
 
+        session_lang = sq.session.language if (sq and sq.session and getattr(sq.session, "language", None)) else "en-IN"
+        target_lang_name = "English"
+        if session_lang:
+            clean_l = session_lang.lower()
+            if "mr" in clean_l or "marathi" in clean_l:
+                target_lang_name = "Marathi (मराठी)"
+            elif "hi" in clean_l or "hindi" in clean_l:
+                target_lang_name = "Hindi (हिंदी)"
+
         prompt = f"""
 INTERVIEW QUESTION:
 Text: {q_text}
@@ -105,6 +110,10 @@ Topic: {q_topic}
 CANDIDATE ANSWER:
 Answer Text: {answer.answer_text}
 Duration: {answer.answer_duration_seconds} seconds
+
+TARGET FEEDBACK LANGUAGE: {target_lang_name}
+
+CRITICAL LANGUAGE RULE: Evaluate the candidate's answer thoroughly. Write all textual feedback, feedback sentences, overall_feedback, strengths, areas_to_improve, and suggested_answer strictly in {target_lang_name} (if Marathi or Hindi, write clean Devanagari script).
 
 TASK:
 Provide a structured evaluation in JSON format containing:
@@ -231,3 +240,72 @@ Provide a structured evaluation in JSON format containing:
             .all()
         )
         return evaluations
+
+    def generate_session_report(self, session_id: str, user_id: str) -> Dict[str, Any]:
+        """Generates comprehensive interview session feedback report including overall score, strengths, and question breakdown."""
+        session = (
+            self.db.query(InterviewSession)
+            .filter(InterviewSession.id == session_id, InterviewSession.user_id == user_id)
+            .first()
+        )
+        if not session:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Interview session not found or access denied.",
+            )
+
+        all_sqs = (
+            self.db.query(InterviewSessionQuestion)
+            .filter(InterviewSessionQuestion.session_id == session_id)
+            .order_by(InterviewSessionQuestion.sequence_number.asc())
+            .all()
+        )
+
+        question_reports = []
+        scores = []
+        all_strengths = []
+        all_improvements = []
+
+        for sq in all_sqs:
+            q_text = sq.question.question_text if sq.question else "General Question"
+            ans = sq.answers[0] if sq.answers else None
+            eval_obj = ans.evaluation if ans else None
+
+            q_score = eval_obj.overall_score if eval_obj else (0.0 if sq.question_status == 'SKIPPED' else None)
+            if q_score is not None and sq.question_status == 'ANSWERED':
+                scores.append(q_score)
+
+            if eval_obj:
+                if eval_obj.strengths:
+                    all_strengths.extend(eval_obj.strengths)
+                if eval_obj.areas_to_improve:
+                    all_improvements.extend(eval_obj.areas_to_improve)
+
+            question_reports.append({
+                "sequence_number": sq.sequence_number,
+                "status": sq.question_status,
+                "question_text": q_text,
+                "score": q_score,
+                "overall_feedback": eval_obj.overall_feedback if eval_obj else ("Question skipped by candidate." if sq.question_status == 'SKIPPED' else "Pending response."),
+            })
+
+        avg_score = round(sum(scores) / len(scores), 2) if scores else 0.0
+        percentage = round(avg_score * 10)
+        grade = "EXCELLENT" if avg_score >= 8.0 else ("GOOD" if avg_score >= 6.0 else "NEEDS_WORK")
+
+        unique_strengths = list(dict.fromkeys(all_strengths))[:5]
+        unique_improvements = list(dict.fromkeys(all_improvements))[:5]
+
+        return {
+            "session_id": session.id,
+            "interview_type": session.interview_type,
+            "total_questions": session.total_questions,
+            "answered_count": len(scores),
+            "skipped_count": sum(1 for sq in all_sqs if sq.question_status == 'SKIPPED'),
+            "overall_score": avg_score,
+            "percentage": percentage,
+            "grade": grade,
+            "strengths": unique_strengths or ["Active participation in interview simulation."],
+            "areas_to_improve": unique_improvements or ["Practice structured delivery and citing legal/policy frameworks."],
+            "question_reports": question_reports,
+        }

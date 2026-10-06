@@ -29,6 +29,18 @@ export const authApi = {
   },
 
   /**
+   * Authenticate user with Google OAuth credential
+   */
+  async googleLogin(credential) {
+    return apiRequest('/auth/google', {
+      method: 'POST',
+      body: JSON.stringify({
+        credential,
+      }),
+    });
+  },
+
+  /**
    * Fetch current logged in user details using JWT
    */
   async getMe() {

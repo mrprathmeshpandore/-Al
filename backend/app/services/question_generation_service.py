@@ -69,6 +69,7 @@ def generate_interview_question(
     difficulty: Optional[str] = "MODERATE",
     question_type: Optional[str] = "MAIN",
     top_k: Optional[int] = 5,
+    language: Optional[str] = "en-IN",
     gemini_service: Optional[BaseGeminiService] = None,
     embedding_provider: Optional[Any] = None,
 ) -> Dict[str, Any]:
@@ -130,7 +131,15 @@ def generate_interview_question(
             "message": UNGROUNDED_QUESTION_MESSAGE,
         }
 
-    # Step 4: Build Context String
+    # Step 4: Build Context String & Language Target
+    target_lang_name = "English"
+    if language:
+        clean_l = language.lower()
+        if "mr" in clean_l or "marathi" in clean_l:
+            target_lang_name = "Marathi (मराठी)"
+        elif "hi" in clean_l or "hindi" in clean_l:
+            target_lang_name = "Hindi (हिंदी)"
+
     context_text = build_rag_context(retrieved_chunks)
     prompt = (
         f"RETRIEVED KNOWLEDGE CONTEXT:\n{context_text}\n\n"
@@ -138,7 +147,9 @@ def generate_interview_question(
         f"- Topic: {topic}\n"
         f"- Subject: {subject or 'General'}\n"
         f"- Question Type: {question_type or 'MAIN'}\n"
-        f"- Difficulty Level: {difficulty or 'MODERATE'}\n\n"
+        f"- Difficulty Level: {difficulty or 'MODERATE'}\n"
+        f"- Target Language: {target_lang_name}\n\n"
+        f"CRITICAL LANGUAGE RULE: Generate the question, explanation, and why_this_matters strictly in {target_lang_name}. If Marathi or Hindi, write clean Devanagari script suitable for a civil services interview.\n\n"
         f"Generate a potential UPSC interview practice question respecting all rules."
     )
 

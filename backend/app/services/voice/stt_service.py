@@ -35,12 +35,13 @@ class SpeechToTextService:
 
     def _resolve_provider(self) -> BaseSpeechToTextProvider:
         provider_name = (self.settings.VOICE_STT_PROVIDER or "fake").lower()
-        if provider_name == "gemini":
-            from app.services.voice.providers.gemini_voice_provider import GeminiSpeechToTextProvider
-            return GeminiSpeechToTextProvider()
-        if provider_name in ("fake", "mock"):
-            return FakeSpeechToTextProvider()
-        # Fallback to fake provider for safety if vendor not initialized
+        if provider_name in ("gemini", "google"):
+            try:
+                from app.services.voice.providers.gemini_voice_provider import GeminiSpeechToTextProvider
+                return GeminiSpeechToTextProvider()
+            except Exception as e:
+                logger.warning(f"Failed to initialize Gemini STT provider ({e}); falling back to FakeSpeechToTextProvider.")
+                return FakeSpeechToTextProvider()
         return FakeSpeechToTextProvider()
 
     def transcribe_audio(
@@ -81,7 +82,7 @@ class SpeechToTextService:
                 temp_file_path = tmp.name
 
             target_language = language or self.settings.VOICE_DEFAULT_LANGUAGE
-            result = self.provider.transcribe(file_bytes, language=target_language)
+            result = self.provider.transcribe(file_bytes, language=target_language, mime_type=clean_content_type)
             return result
 
         except HTTPException:
@@ -90,7 +91,7 @@ class SpeechToTextService:
             logger.error(f"Voice transcription provider error: {err}", exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="Voice transcription provider error during processing.",
+                detail=f"Voice transcription provider error: {str(err)}",
             )
         finally:
             if temp_file_path and os.path.exists(temp_file_path):

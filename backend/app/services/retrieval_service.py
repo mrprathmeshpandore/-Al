@@ -48,6 +48,7 @@ def search_knowledge_base(
         }
 
     import time
+    import numpy as np
     from app.services.cache_service import get_cache_service
 
     start_time = time.time()
@@ -75,8 +76,22 @@ def search_knowledge_base(
             "message": "Failed to generate embedding vector for query."
         }
 
-    # 2. Build Base Query joining DocumentChunk -> Document -> Resource
-    q = db.query(DocumentChunk, Document, Resource)\
+    # 2. Build Base Query joining specific columns rather than full ORM models
+    q = db.query(
+        DocumentChunk.id.label("chunk_id"),
+        DocumentChunk.document_id.label("document_id"),
+        DocumentChunk.page_number.label("page_number"),
+        DocumentChunk.chunk_index.label("chunk_index"),
+        DocumentChunk.content.label("content"),
+        DocumentChunk.embedding.label("embedding"),
+        DocumentChunk.chunk_metadata.label("chunk_metadata"),
+        Resource.id.label("resource_id"),
+        Resource.title.label("resource_title"),
+        Resource.source.label("source"),
+        Resource.subject.label("subject"),
+        Resource.topic.label("topic"),
+        Resource.category.label("category"),
+    )\
         .join(Document, DocumentChunk.document_id == Document.id)\
         .join(Resource, Document.resource_id == Resource.id)\
         .filter(DocumentChunk.embedding_status == EmbeddingStatus.COMPLETED.value)\
@@ -111,33 +126,54 @@ def search_knowledge_base(
         return {
             "query": clean_query,
             "results": [],
+            "retrieval_latency_ms": round((time.time() - start_time) * 1000, 2),
             "message": "No sufficiently relevant content found."
         }
 
-    # 5. Compute Vector Cosine Similarity
-    scored_results = []
+    # 5. Fast Vector Cosine Similarity (Vectorized NumPy Matrix Dot Product)
+    q_vec = np.array(query_vector, dtype=np.float32)
+    q_norm = np.linalg.norm(q_vec)
     min_threshold = settings.RAG_MIN_SIMILARITY
 
-    for chunk, doc, resource in items:
-        chunk_vec = chunk.embedding or []
-        score = compute_cosine_similarity(query_vector, chunk_vec)
+    scored_results = []
+    
+    if q_norm > 0:
+        embeddings_list = []
+        valid_items = []
+        for item in items:
+            vec = item.embedding
+            if vec and len(vec) == len(query_vector):
+                embeddings_list.append(vec)
+                valid_items.append(item)
 
-        if score >= min_threshold:
-            scored_results.append({
-                "chunk_id": chunk.id,
-                "document_id": doc.id,
-                "resource_id": resource.id,
-                "resource_title": resource.title,
-                "content": chunk.content,
-                "page_number": chunk.page_number,
-                "chunk_index": chunk.chunk_index,
-                "score": round(score, 4),
-                "source": resource.source,
-                "subject": resource.subject,
-                "topic": resource.topic,
-                "category": resource.category,
-                "metadata": chunk.chunk_metadata or {},
-            })
+        if embeddings_list:
+            emb_matrix = np.array(embeddings_list, dtype=np.float32)
+            emb_norms = np.linalg.norm(emb_matrix, axis=1)
+            # Prevent division by zero
+            emb_norms[emb_norms == 0] = 1.0
+
+            # Matrix dot product across all chunks simultaneously
+            scores = (emb_matrix @ q_vec) / (emb_norms * q_norm)
+
+            for idx, score in enumerate(scores):
+                float_score = float(score)
+                if float_score >= min_threshold:
+                    item = valid_items[idx]
+                    scored_results.append({
+                        "chunk_id": item.chunk_id,
+                        "document_id": item.document_id,
+                        "resource_id": item.resource_id,
+                        "resource_title": item.resource_title,
+                        "content": item.content,
+                        "page_number": item.page_number,
+                        "chunk_index": item.chunk_index,
+                        "score": round(float_score, 4),
+                        "source": item.source,
+                        "subject": item.subject,
+                        "topic": item.topic,
+                        "category": item.category,
+                        "metadata": item.chunk_metadata or {},
+                    })
 
     # Sort results by score descending
     scored_results.sort(key=lambda x: x["score"], reverse=True)

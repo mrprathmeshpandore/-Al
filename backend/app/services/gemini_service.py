@@ -19,6 +19,11 @@ class BaseGeminiService(ABC):
         pass
 
     @abstractmethod
+    def generate_grounded_answer_stream(self, prompt: str, system_instruction: str):
+        """Streams grounded answer tokens/chunks as text."""
+        pass
+
+    @abstractmethod
     def generate_json_response(self, prompt: str, system_instruction: str) -> Dict[str, Any]:
         """Generates structured JSON response dictionary from Gemini."""
         pass
@@ -65,6 +70,20 @@ class FakeGeminiService(BaseGeminiService):
             "grounded": self.mock_grounded,
             "source_indexes": self.mock_source_indexes,
         }
+
+    def generate_grounded_answer_stream(self, prompt: str, system_instruction: str):
+        if self.should_fail:
+            raise RuntimeError("Simulated Gemini API 500 Internal Server Error")
+        if self.should_timeout:
+            raise TimeoutError("Simulated Gemini API request timeout")
+        if self.should_malform:
+            yield "invalid json payload"
+            return
+
+        answer = self.mock_answer or "Grounded response based on provided context."
+        words = answer.split(" ")
+        for i, w in enumerate(words):
+            yield w + (" " if i < len(words) - 1 else "")
 
     def generate_json_response(self, prompt: str, system_instruction: str) -> Dict[str, Any]:
         if self.should_fail:
@@ -195,6 +214,7 @@ class GeminiService(BaseGeminiService):
     Supports configurable models, exponential backoff retries, request timeout handling,
     safe error logging, and structured JSON extraction.
     """
+    _global_client = None
 
     def __init__(
         self,
@@ -207,17 +227,16 @@ class GeminiService(BaseGeminiService):
         self.model = model or settings.GEMINI_GENERATION_MODEL
         self.timeout = timeout or settings.GEMINI_REQUEST_TIMEOUT
         self.max_retries = max_retries if max_retries is not None else settings.GEMINI_MAX_RETRIES
-        self._client = None
 
     def _get_client(self):
-        if not self._client and self.api_key:
+        if not GeminiService._global_client and self.api_key:
             try:
                 from google import genai
-                self._client = genai.Client(api_key=self.api_key)
+                GeminiService._global_client = genai.Client(api_key=self.api_key)
             except Exception as e:
                 logger.error(f"Failed to initialize google.genai Client: {e}")
-                self._client = None
-        return self._client
+                GeminiService._global_client = None
+        return GeminiService._global_client
 
     def _clean_json_text(self, text: str) -> str:
         """Strip markdown code block formatting (```json ... ```) if present."""
@@ -305,6 +324,43 @@ class GeminiService(BaseGeminiService):
         logger.error(f"Gemini API call failed after {attempt + 1} attempt(s): {last_exception}")
         raise last_exception or RuntimeError("Gemini API call failed after retries")
 
+    def generate_grounded_answer_stream(self, prompt: str, system_instruction: str):
+        """
+        Streams Gemini generation output token by token using generate_content_stream.
+        """
+        if not self.api_key:
+            logger.warning("GEMINI_API_KEY is missing. Falling back to FakeGeminiService streaming.")
+            yield from FakeGeminiService().generate_grounded_answer_stream(prompt, system_instruction)
+            return
+
+        client = self._get_client()
+        if not client:
+            logger.error("Gemini client initialization failed. Falling back to FakeGeminiService streaming.")
+            yield from FakeGeminiService().generate_grounded_answer_stream(prompt, system_instruction)
+            return
+
+        from google.genai import types
+
+        config = types.GenerateContentConfig(
+            system_instruction=system_instruction,
+            temperature=0.2,
+            max_output_tokens=settings.GEMINI_MAX_TOKENS,
+        )
+
+        try:
+            logger.info(f"Invoking Gemini model '{self.model}' streaming...")
+            response_stream = client.models.generate_content_stream(
+                model=self.model,
+                contents=prompt,
+                config=config,
+            )
+            for chunk in response_stream:
+                if chunk and chunk.text:
+                    yield chunk.text
+        except Exception as e:
+            logger.error(f"Gemini streaming exception: {e}")
+            raise e
+
     def generate_json_response(self, prompt: str, system_instruction: str) -> Dict[str, Any]:
         if not self.api_key:
             logger.warning("GEMINI_API_KEY is missing. Falling back to FakeGeminiService.")
@@ -363,13 +419,19 @@ class GeminiService(BaseGeminiService):
         raise last_exception or RuntimeError("Gemini API call failed after retries")
 
 
+_cached_gemini_service: Optional[BaseGeminiService] = None
+
 def get_gemini_service(force_fake: bool = False, custom_fake: Optional[FakeGeminiService] = None) -> BaseGeminiService:
     """
     Factory function returning active Gemini generation service instance.
     Returns FakeGeminiService if force_fake is True or GEMINI_API_KEY is not configured.
     """
+    global _cached_gemini_service
     if custom_fake:
         return custom_fake
     if force_fake or not settings.GEMINI_API_KEY:
         return FakeGeminiService()
-    return GeminiService()
+    
+    if _cached_gemini_service is None:
+        _cached_gemini_service = GeminiService()
+    return _cached_gemini_service

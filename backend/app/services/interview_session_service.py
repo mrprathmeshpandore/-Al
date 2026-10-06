@@ -149,10 +149,31 @@ class InterviewSessionService:
             )
 
         if sq.question_status == QuestionSessionStatus.ANSWERED.value:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Question at index {session.current_question_index} has already been answered.",
+            existing_ans = (
+                self.db.query(InterviewAnswer)
+                .filter(InterviewAnswer.session_question_id == sq.id)
+                .first()
             )
+            if existing_ans:
+                existing_ans.answer_text = clean_text
+                if duration_seconds > 0:
+                    existing_ans.answer_duration_seconds = duration_seconds
+                # Delete stale evaluation if present so fresh evaluation is generated
+                if existing_ans.evaluation:
+                    self.db.delete(existing_ans.evaluation)
+                self.db.commit()
+                self.db.refresh(existing_ans)
+                next_action = (
+                    "COMPLETE_INTERVIEW"
+                    if session.current_question_index >= session.total_questions
+                    else "NEXT_QUESTION"
+                )
+                return {
+                    "answer_id": existing_ans.id,
+                    "session_question_id": sq.id,
+                    "submitted_at": existing_ans.submitted_at,
+                    "next_action": next_action,
+                }
 
         now = datetime.now(timezone.utc)
         answer = InterviewAnswer(
@@ -181,6 +202,34 @@ class InterviewSessionService:
             "next_action": next_action,
         }
 
+    def skip_question(self, session_id: str, user_id: str) -> Dict[str, Any]:
+        """Marks current session question as SKIPPED and allows candidate to move forward."""
+        session = self.get_session(session_id, user_id)
+        if session.status != SessionStatus.IN_PROGRESS.value:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Cannot skip question. Session is currently in '{session.status}' state.",
+            )
+
+        sq = (
+            self.db.query(InterviewSessionQuestion)
+            .filter(
+                InterviewSessionQuestion.session_id == session.id,
+                InterviewSessionQuestion.sequence_number == session.current_question_index,
+            )
+            .first()
+        )
+
+        if sq and sq.question_status == QuestionSessionStatus.ASKED.value:
+            sq.question_status = "SKIPPED"
+            self.db.commit()
+
+        return {
+            "session_id": session.id,
+            "status": "SKIPPED",
+            "sequence_number": session.current_question_index,
+        }
+
     def get_next_question(
         self, session_id: str, user_id: str, config: Optional[Dict[str, Any]] = None
     ) -> InterviewSessionQuestion:
@@ -203,15 +252,18 @@ class InterviewSessionService:
             .first()
         )
 
-        # IDEMPOTENCY: If current question was generated via next-question (index > 1) and is still ASKED, return it
-        if curr_sq and curr_sq.question_status == QuestionSessionStatus.ASKED.value and session.current_question_index > 1:
-            return curr_sq
-
-        if not curr_sq or curr_sq.question_status != QuestionSessionStatus.ANSWERED.value:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Current question at index {session.current_question_index} must be answered before moving to the next question.",
+        if curr_sq:
+            has_ans = (
+                self.db.query(InterviewAnswer)
+                .filter(InterviewAnswer.session_question_id == curr_sq.id)
+                .first()
             )
+            if has_ans:
+                curr_sq.question_status = QuestionSessionStatus.ANSWERED.value
+                self.db.commit()
+            elif curr_sq.question_status == QuestionSessionStatus.ASKED.value:
+                # Current question is active and awaiting answer; return idempotently
+                return curr_sq
 
         # IDEMPOTENCY CHECK: If next question at sequence index (current_index + 1) already exists, return it
         target_seq = session.current_question_index + 1

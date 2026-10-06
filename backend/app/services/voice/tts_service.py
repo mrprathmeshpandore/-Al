@@ -15,11 +15,12 @@ class TextToSpeechService:
 
     def _resolve_provider(self) -> BaseTextToSpeechProvider:
         provider_name = (self.settings.VOICE_TTS_PROVIDER or "fake").lower()
-        if provider_name == "gemini":
-            from app.services.voice.providers.gemini_voice_provider import GeminiTextToSpeechProvider
-            return GeminiTextToSpeechProvider()
-        if provider_name in ("fake", "mock"):
-            return FakeTextToSpeechProvider()
+        if provider_name in ("gemini", "google", "gtts"):
+            try:
+                from app.services.voice.providers.gemini_voice_provider import GeminiTextToSpeechProvider
+                return GeminiTextToSpeechProvider()
+            except Exception as e:
+                return FakeTextToSpeechProvider()
         return FakeTextToSpeechProvider()
 
     def synthesize_speech(

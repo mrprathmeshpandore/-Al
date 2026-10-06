@@ -497,3 +497,50 @@ def test_grounded_false_behavior():
         assert res_data["sources"] == []
     finally:
         db.close()
+
+
+# 16. Test Streaming API Endpoint /api/ai/ask/stream
+def test_ai_ask_stream_endpoint():
+    headers = get_authenticated_headers("user_stream@example.com")
+    pdf_bytes = create_sample_pdf_bytes()
+
+    upload_res = client.post(
+        "/api/resources/upload",
+        files={"file": ("stream_doc.pdf", pdf_bytes, "application/pdf")},
+        data={"title": "Stream Doc Notes", "subject": "Polity"},
+        headers=headers
+    )
+    doc_id = upload_res.json()["document_id"]
+
+    db = TestingSessionLocal()
+    try:
+        provider = FakeEmbeddingProvider(vector_dim=768)
+        query = "What is the Preamble?"
+        vec = provider.embed_text(query)
+
+        chunk = DocumentChunk(
+            document_id=doc_id,
+            chunk_index=0,
+            page_number=1,
+            content="The Preamble to the Constitution of India is a brief introductory statement.",
+            embedding=vec,
+            embedding_status=EmbeddingStatus.COMPLETED.value
+        )
+        db.add(chunk)
+        doc = db.query(Document).filter(Document.id == doc_id).first()
+        doc.processing_status = ProcessingStatus.PROCESSED.value
+        db.commit()
+
+        # Invoke POST /api/ai/ask/stream
+        res = client.post(
+            "/api/ai/ask/stream",
+            json={"query": query, "top_k": 3},
+            headers=headers
+        )
+        assert res.status_code == 200
+        assert "text/event-stream" in res.headers["content-type"]
+        assert "event: metadata" in res.text
+        assert "event: token" in res.text
+    finally:
+        db.close()
+

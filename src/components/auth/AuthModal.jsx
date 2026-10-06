@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Mail, Lock, User, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
+import { GoogleLogin } from '@react-oauth/google';
 import { useAuth } from '../../context/AuthContext';
+import GoogleAuthSuccessAnimation from './GoogleAuthSuccessAnimation';
 
 export default function AuthModal() {
   const navigate = useNavigate();
@@ -12,6 +14,7 @@ export default function AuthModal() {
     authModalMode,
     setAuthModalMode,
     login,
+    googleLogin,
     register,
   } = useAuth();
 
@@ -20,10 +23,46 @@ export default function AuthModal() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
 
   if (!isAuthModalOpen) return null;
 
+  if (showSuccessAnimation) {
+    return (
+      <GoogleAuthSuccessAnimation
+        onComplete={() => {
+          setShowSuccessAnimation(false);
+          setSubmitting(false);
+          closeAuthModal();
+          navigate('/dashboard');
+        }}
+      />
+    );
+  }
+
   const isRegister = authModalMode === 'register';
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setError('');
+    setSubmitting(true);
+    try {
+      if (!credentialResponse || !credentialResponse.credential) {
+        throw new Error('Google Sign-In credential token was not received.');
+      }
+      await googleLogin(credentialResponse.credential);
+      setEmail('');
+      setPassword('');
+      setFullName('');
+      setShowSuccessAnimation(true);
+    } catch (err) {
+      setError(err.message || 'Google Authentication failed. Please try again.');
+      setSubmitting(false);
+    }
+  };
+
+  const handleGoogleError = () => {
+    setError('Google Sign-In popup was closed or authentication failed.');
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -99,7 +138,7 @@ export default function AuthModal() {
           </div>
 
           {/* Form Content */}
-          <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div className="p-6 space-y-4">
             {error && (
               <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-semibold flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
@@ -107,78 +146,102 @@ export default function AuthModal() {
               </div>
             )}
 
-            {isRegister && (
+            {/* Official Google OAuth Sign In Button */}
+            <div className="flex flex-col items-center justify-center">
+              <div className="w-full flex justify-center py-1">
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={handleGoogleError}
+                  theme="outline"
+                  size="large"
+                  shape="pill"
+                  width="100%"
+                  text={isRegister ? "signup_with" : "signin_with"}
+                  logo_alignment="center"
+                />
+              </div>
+
+              <div className="w-full flex items-center my-3 gap-3">
+                <div className="h-[1px] bg-slate-200 flex-1" />
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">or continue with email</span>
+                <div className="h-[1px] bg-slate-200 flex-1" />
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {isRegister && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Full Name
+                  </label>
+                  <div className="relative">
+                    <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                    <input
+                      type="text"
+                      required
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="e.g. Rahul Sharma"
+                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-[#0B1628] focus:bg-white transition-all"
+                    />
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Full Name
+                  Email Address
                 </label>
                 <div className="relative">
-                  <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                  <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                   <input
-                    type="text"
+                    type="email"
                     required
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    placeholder="e.g. Rahul Sharma"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="aspirant@upsc.gov.in"
                     className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-[#0B1628] focus:bg-white transition-all"
                   />
                 </div>
               </div>
-            )}
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Email Address
-              </label>
-              <div className="relative">
-                <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="aspirant@upsc.gov.in"
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-[#0B1628] focus:bg-white transition-all"
-                />
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Password
+                </label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                  <input
+                    type="password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder={isRegister ? 'Minimum 8 characters' : 'Enter your password'}
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-[#0B1628] focus:bg-white transition-all"
+                  />
+                </div>
               </div>
-            </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-                <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder={isRegister ? 'Minimum 8 characters' : 'Enter your password'}
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-[#0B1628] focus:bg-white transition-all"
-                />
-              </div>
-            </div>
-
-            <motion.button
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.98 }}
-              type="submit"
-              disabled={submitting}
-              className="w-full bg-[#0B1628] hover:bg-[#152744] text-white py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-md transition-colors cursor-pointer mt-2"
-            >
-              {submitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
-                  <span>Processing...</span>
-                </>
-              ) : (
-                <>
-                  <span>{isRegister ? 'Create Account & Continue' : 'Sign In to Prashasak AI'}</span>
-                  <ArrowRight className="w-4 h-4 text-amber-400" />
-                </>
-              )}
-            </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.98 }}
+                type="submit"
+                disabled={submitting}
+                className="w-full bg-[#0B1628] hover:bg-[#152744] text-white py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-md transition-colors cursor-pointer mt-2"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                    <span>Processing...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>{isRegister ? 'Create Account & Continue' : 'Sign In to Prashasak AI'}</span>
+                    <ArrowRight className="w-4 h-4 text-amber-400" />
+                  </>
+                )}
+              </motion.button>
+            </form>
 
             {/* Toggle Mode */}
             <div className="pt-3 text-center border-t border-slate-100">
@@ -194,7 +257,7 @@ export default function AuthModal() {
                 )}
               </button>
             </div>
-          </form>
+          </div>
         </motion.div>
       </div>
     </AnimatePresence>

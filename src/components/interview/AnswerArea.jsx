@@ -16,7 +16,33 @@ import {
 } from 'lucide-react';
 import { voiceApi } from '../../services/voiceApi';
 
-export default function AnswerArea({ onStateChange, onNextQuestion, onSubmitAnswer, currentQuestionText }) {
+export default function AnswerArea({ 
+  onStateChange, 
+  onNextQuestion, 
+  onSubmitAnswer, 
+  onSkipQuestion, 
+  onStartNewSession,
+  currentQuestionText,
+  sessionLanguage = 'en-IN',
+  feedbackMode = 'REAL_BOARD'
+}) {
+
+  // ...
+
+  const handleSkip = async () => {
+    if (isNavigating) return;
+    setIsNavigating(true);
+    try {
+      if (onSkipQuestion) await onSkipQuestion();
+    } finally {
+      setIsNavigating(false);
+      setModeState('IDLE');
+      setTypedAnswer('');
+      setTranscript('');
+      setRecordingSeconds(0);
+      setEvaluation(null);
+    }
+  };
   // STATES: 'IDLE' | 'LISTENING' | 'TRANSCRIBING' | 'TRANSCRIBED' | 'TEXT_MODE' | 'PROCESSING' | 'FEEDBACK' | 'MIC_DENIED' | 'STT_ERROR'
   const [modeState, setModeState] = useState('IDLE');
   const [recordingSeconds, setRecordingSeconds] = useState(0);
@@ -66,7 +92,7 @@ export default function AnswerArea({ onStateChange, onNextQuestion, onSubmitAnsw
         setIsSynthesizing(false);
         return;
       }
-      const audioUrl = await voiceApi.synthesizeSpeech(currentQuestionText);
+      const audioUrl = await voiceApi.synthesizeSpeech(currentQuestionText, sessionLanguage);
       setTtsAudioUrl(audioUrl);
       const audio = new Audio(audioUrl);
       audio.play();
@@ -74,7 +100,9 @@ export default function AnswerArea({ onStateChange, onNextQuestion, onSubmitAnsw
       // Browser SpeechSynthesis Fallback
       if ('speechSynthesis' in window) {
         const utterance = new SpeechSynthesisUtterance(currentQuestionText);
-        utterance.lang = 'en-IN';
+        utterance.lang = sessionLanguage || 'en-IN';
+        utterance.rate = 0.95;
+        utterance.pitch = 1.0;
         window.speechSynthesis.speak(utterance);
       }
     } finally {
@@ -92,9 +120,30 @@ export default function AnswerArea({ onStateChange, onNextQuestion, onSubmitAnsw
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      let options = {};
+      if (typeof MediaRecorder !== 'undefined') {
+        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+          options = { mimeType: 'audio/webm;codecs=opus' };
+        } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+          options = { mimeType: 'audio/webm' };
+        } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+          options = { mimeType: 'audio/mp4' };
+        } else if (MediaRecorder.isTypeSupported('audio/ogg')) {
+          options = { mimeType: 'audio/ogg' };
+        }
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        }
+      });
+      const mediaRecorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = mediaRecorder;
+
+      const actualMimeType = mediaRecorder.mimeType || options.mimeType || 'audio/webm';
 
       mediaRecorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) {
@@ -103,7 +152,7 @@ export default function AnswerArea({ onStateChange, onNextQuestion, onSubmitAnsw
       };
 
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+        const audioBlob = new Blob(audioChunksRef.current, { type: actualMimeType });
         // Clean up tracks
         stream.getTracks().forEach(track => track.stop());
         await processAudioTranscription(audioBlob);
@@ -112,7 +161,16 @@ export default function AnswerArea({ onStateChange, onNextQuestion, onSubmitAnsw
       mediaRecorder.start();
       setModeState('LISTENING');
     } catch (err) {
-      setErrorMessage('Microphone access was denied. You can type your answer instead.');
+      console.error("Mic error:", err);
+      let errorMsg = 'Microphone access was denied.';
+      if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        errorMsg = 'No microphone found. Please connect a microphone.';
+      } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+        errorMsg = 'Your microphone is being used by another application or is not readable.';
+      } else {
+        errorMsg = err.message || 'Microphone access was denied.';
+      }
+      setErrorMessage(`${errorMsg} You can type your answer instead.`);
       setModeState('MIC_DENIED');
     }
   };
@@ -129,10 +187,10 @@ export default function AnswerArea({ onStateChange, onNextQuestion, onSubmitAnsw
   const processAudioTranscription = async (audioBlob) => {
     setModeState('TRANSCRIBING');
     try {
-      const result = await voiceApi.transcribeAudio(audioBlob);
+      const result = await voiceApi.transcribeAudio(audioBlob, sessionLanguage);
       const textResult = (result.text || '').trim();
       if (!textResult) {
-        setErrorMessage('Voice transcription resulted in empty text. Please speak clearly or type your answer.');
+        setErrorMessage('माईकमधून कोणताही स्पष्ट आवाज ऐकू आला नाही. कृपया माईक जवळ घेऊन स्पष्ट बोला किंवा उत्तर टाइप करा. (No clear speech detected. Please speak louder or type your answer.)');
         setModeState('STT_ERROR');
         return;
       }
@@ -149,15 +207,27 @@ export default function AnswerArea({ onStateChange, onNextQuestion, onSubmitAnsw
     const finalAnswerText = typedAnswer.trim() || transcript.trim();
     if (!finalAnswerText) return;
 
+    setErrorMessage('');
     setModeState('PROCESSING');
     try {
       if (onSubmitAnswer) {
         const evalResult = await onSubmitAnswer(finalAnswerText, recordingSeconds || 30);
         setEvaluation(evalResult);
       }
-      setModeState('FEEDBACK');
+
+      if (feedbackMode === 'REAL_BOARD') {
+        if (onNextQuestion) await onNextQuestion();
+        setModeState('IDLE');
+        setTypedAnswer('');
+        setTranscript('');
+        setRecordingSeconds(0);
+        setEvaluation(null);
+      } else {
+        setModeState('FEEDBACK');
+      }
     } catch (err) {
-      setErrorMessage(err.message || 'Evaluation failed. Please try again.');
+      console.error("Answer submission/evaluation error:", err);
+      setErrorMessage(typeof err === 'object' ? (err.detail || err.message || JSON.stringify(err)) : String(err));
       setModeState('TEXT_MODE');
     }
   };
@@ -169,6 +239,8 @@ export default function AnswerArea({ onStateChange, onNextQuestion, onSubmitAnsw
     setIsNavigating(true);
     try {
       if (onNextQuestion) await onNextQuestion();
+    } catch (err) {
+      console.error("Error advancing to next question:", err);
     } finally {
       setIsNavigating(false);
       setModeState('IDLE');
@@ -352,6 +424,13 @@ export default function AnswerArea({ onStateChange, onNextQuestion, onSubmitAnsw
               </span>
             </div>
 
+            {errorMessage && (
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center gap-2 font-medium">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{errorMessage}</span>
+              </div>
+            )}
+
             <textarea
               rows={4}
               value={typedAnswer}
@@ -381,8 +460,8 @@ export default function AnswerArea({ onStateChange, onNextQuestion, onSubmitAnsw
                 <button
                   type="button"
                   onClick={handleSubmitFinalAnswer}
-                  disabled={!typedAnswer.trim()}
-                  className="bg-[#0B1628] hover:bg-[#152744] text-white px-6 py-2 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-md disabled:opacity-50 cursor-pointer"
+                  disabled={!(typedAnswer.trim() || transcript.trim()) || modeState === 'PROCESSING'}
+                  className="bg-[#0B1628] hover:bg-[#152744] text-white px-6 py-2 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 >
                   <span>Submit Answer</span>
                   <Send className="w-3.5 h-3.5" />
@@ -411,6 +490,28 @@ export default function AnswerArea({ onStateChange, onNextQuestion, onSubmitAnsw
               </button>
             </div>
 
+            {errorMessage && (
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center justify-between gap-2 font-medium">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                  <span>{typeof errorMessage === 'object' ? (errorMessage.detail || errorMessage.message || JSON.stringify(errorMessage)) : String(errorMessage)}</span>
+                </div>
+                {(String(errorMessage).includes('COMPLETED') || String(errorMessage).includes('completed')) && onStartNewSession && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setErrorMessage('');
+                      await onStartNewSession();
+                    }}
+                    className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold shrink-0 cursor-pointer shadow-2xs transition-colors flex items-center gap-1.5"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    <span>Start New Session</span>
+                  </button>
+                )}
+              </div>
+            )}
+
             <textarea
               rows={4}
               value={typedAnswer}
@@ -427,6 +528,13 @@ export default function AnswerArea({ onStateChange, onNextQuestion, onSubmitAnsw
               <div className="flex items-center gap-3">
                 <button
                   type="button"
+                  onClick={handleSkip}
+                  className="px-4 py-2 rounded-full text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 cursor-pointer"
+                >
+                  <span>Skip Question ⏭️</span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => setModeState('IDLE')}
                   className="px-4 py-2 rounded-full text-xs font-bold text-slate-600 hover:text-slate-900 border border-slate-200"
                 >
@@ -435,8 +543,8 @@ export default function AnswerArea({ onStateChange, onNextQuestion, onSubmitAnsw
                 <button
                   type="button"
                   onClick={handleSubmitFinalAnswer}
-                  disabled={!typedAnswer.trim()}
-                  className="bg-[#0B1628] hover:bg-[#152744] text-white px-5 py-2 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-md disabled:opacity-50 cursor-pointer"
+                  disabled={!(typedAnswer.trim() || transcript.trim()) || modeState === 'PROCESSING'}
+                  className="bg-[#0B1628] hover:bg-[#152744] text-white px-5 py-2 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 >
                   <span>Submit Answer</span>
                   <Send className="w-3.5 h-3.5" />
@@ -528,18 +636,31 @@ export default function AnswerArea({ onStateChange, onNextQuestion, onSubmitAnsw
 
             <div className="pt-2 flex items-center justify-end gap-3">
               <button
-                onClick={() => setModeState('IDLE')}
-                className="px-4 py-2 rounded-full text-xs font-bold text-slate-600 hover:text-slate-900 border border-slate-200 flex items-center gap-1.5"
+                onClick={() => {
+                  setErrorMessage('');
+                  setEvaluation(null);
+                  setModeState('TEXT_MODE');
+                }}
+                className="px-4 py-2 rounded-full text-xs font-bold text-slate-600 hover:text-slate-900 border border-slate-200 flex items-center gap-1.5 cursor-pointer"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 <span>Retry Question</span>
               </button>
 
               <button
+                type="button"
                 onClick={handleContinueNext}
-                className="bg-[#0B1628] hover:bg-[#152744] text-white px-6 py-2 rounded-full text-xs font-bold inline-flex items-center gap-2 shadow-md cursor-pointer"
+                disabled={isNavigating}
+                className="bg-[#0B1628] hover:bg-[#152744] text-white px-6 py-2 rounded-full text-xs font-bold inline-flex items-center gap-2 shadow-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <span>Continue →</span>
+                {isNavigating ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Next Question...</span>
+                  </>
+                ) : (
+                  <span>Continue →</span>
+                )}
               </button>
             </div>
           </motion.div>

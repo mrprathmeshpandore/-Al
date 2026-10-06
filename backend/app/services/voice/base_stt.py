@@ -7,7 +7,7 @@ class BaseSpeechToTextProvider(ABC):
 
     @abstractmethod
     def transcribe(
-        self, audio_bytes: bytes, language: Optional[str] = None
+        self, audio_bytes: bytes, language: Optional[str] = None, mime_type: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Transcribe audio bytes into structured output.

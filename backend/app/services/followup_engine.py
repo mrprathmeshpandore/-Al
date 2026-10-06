@@ -71,6 +71,15 @@ class FollowupEngine:
             e = answer.evaluation
             eval_context = f"\nEVALUATION CONTEXT (Phase 10):\n- Content Score: {e.content_score}/10\n- Depth Score: {e.depth_score}/10\n- Reasoning Score: {e.reasoning_score}/10\n- Balance Score: {e.balance_score}/10\n- Feedback: {e.overall_feedback}"
 
+        session_lang = session_question.session.language if (session_question and session_question.session and getattr(session_question.session, "language", None)) else "en-IN"
+        target_lang_name = "English"
+        if session_lang:
+            clean_l = session_lang.lower()
+            if "mr" in clean_l or "marathi" in clean_l:
+                target_lang_name = "Marathi (मराठी)"
+            elif "hi" in clean_l or "hindi" in clean_l:
+                target_lang_name = "Hindi (हिंदी)"
+
         prompt = f"""
 ORIGINAL QUESTION:
 Text: {q_text}
@@ -81,6 +90,9 @@ CANDIDATE ANSWER:
 {answer.answer_text}
 (Duration: {answer.answer_duration_seconds}s)
 {eval_context}
+
+TARGET LANGUAGE: {target_lang_name}
+CRITICAL LANGUAGE RULE: If a follow-up question is generated, output the question text strictly in {target_lang_name} (if Marathi or Hindi, write clean Devanagari script).
 
 TASK:
 Determine if a follow-up question is required. Output strict JSON only matching FollowupDecisionSchema.

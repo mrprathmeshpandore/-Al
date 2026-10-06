@@ -44,6 +44,7 @@ def generate_personalized_interview_question(
     difficulty: Optional[str] = "MODERATE",
     question_type: Optional[str] = "MAIN",
     top_k: Optional[int] = 5,
+    language: Optional[str] = "en-IN",
     gemini_service: Optional[BaseGeminiService] = None,
     embedding_provider: Optional[Any] = None,
     retrieval_func: Optional[Any] = None,
@@ -153,7 +154,15 @@ def generate_personalized_interview_question(
             "message": UNGROUNDED_QUESTION_MESSAGE,
         }
 
-    # Step 7: Build Combined DAF + RAG Prompt Context
+    # Step 7: Build Combined DAF + RAG Prompt Context & Language Target
+    target_lang_name = "English"
+    if language:
+        clean_l = language.lower()
+        if "mr" in clean_l or "marathi" in clean_l:
+            target_lang_name = "Marathi (मराठी)"
+        elif "hi" in clean_l or "hindi" in clean_l:
+            target_lang_name = "Hindi (हिंदी)"
+
     rag_context_str = build_rag_context(retrieved_chunks)
     prompt = (
         f"{daf_context_str}\n\n"
@@ -162,7 +171,9 @@ def generate_personalized_interview_question(
         f"- Personalization Source: {src_clean}\n"
         f"- DAF Background Label: {label}\n"
         f"- Question Type: {question_type or 'MAIN'}\n"
-        f"- Difficulty Level: {difficulty or 'MODERATE'}\n\n"
+        f"- Difficulty Level: {difficulty or 'MODERATE'}\n"
+        f"- Target Language: {target_lang_name}\n\n"
+        f"CRITICAL LANGUAGE RULE: Generate the question, explanation, and why_this_matters strictly in {target_lang_name}. If Marathi or Hindi, write clean Devanagari script suitable for a civil services interview.\n\n"
         f"Generate a potential personalized UPSC interview practice question respecting all rules."
     )
 

@@ -37,6 +37,7 @@ class Settings(BaseSettings):
 
     # API Keys & Secrets
     GEMINI_API_KEY: str = Field(default="", description="Gemini API Key for future RAG/AI modules")
+    GOOGLE_CLIENT_ID: str = Field(default="", description="Google OAuth Client ID")
     SECRET_KEY: str = Field(default="dev_secret_key_prashasak_ai_change_in_production_32bytes", description="Application secret key")
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 Hours
@@ -48,8 +49,8 @@ class Settings(BaseSettings):
     CHUNK_OVERLAP: int = Field(default=150, description="Overlap character length between sequential chunks")
 
     # RAG & Vector Embedding Configuration
-    GEMINI_EMBEDDING_MODEL: str = Field(default="text-embedding-004", description="Gemini embedding model name")
-    GEMINI_GENERATION_MODEL: str = Field(default="gemini-1.5-flash", description="Gemini text generation model name")
+    GEMINI_EMBEDDING_MODEL: str = Field(default="gemini-embedding-001", description="Gemini embedding model name")
+    GEMINI_GENERATION_MODEL: str = Field(default="gemini-flash-lite-latest", description="Gemini text generation model name")
     GEMINI_REQUEST_TIMEOUT: float = Field(default=30.0, description="Gemini API request timeout in seconds")
     GEMINI_MAX_RETRIES: int = Field(default=3, description="Maximum retries for Gemini API calls")
     GEMINI_MAX_TOKENS: int = Field(default=2048, description="Maximum output tokens for Gemini generation")
@@ -70,7 +71,7 @@ class Settings(BaseSettings):
     VOICE_STT_PROVIDER: str = Field(default="fake", description="Speech-to-Text provider (fake, google, whisper)")
     VOICE_TTS_PROVIDER: str = Field(default="fake", description="Text-to-Speech provider (fake, gtts, google)")
     VOICE_DEFAULT_LANGUAGE: str = Field(default="en-IN", description="Default voice language code")
-    VOICE_DEFAULT_VOICE: str = Field(default="default", description="Default voice model/accent name")
+    VOICE_DEFAULT_VOICE: str = Field(default="Kore", description="Default voice model/accent name")
     VOICE_MAX_AUDIO_SIZE_MB: int = Field(default=10, description="Maximum allowed audio upload size in MB")
     VOICE_MAX_DURATION_SECONDS: int = Field(default=180, description="Maximum allowed audio duration in seconds")
 

@@ -13,6 +13,10 @@ class UserLoginRequest(BaseModel):
     password: str
 
 
+class GoogleLoginRequest(BaseModel):
+    credential: str = Field(..., description="Google ID Token credential from Google OAuth")
+
+
 class UserResponse(BaseModel):
     id: str
     email: EmailStr

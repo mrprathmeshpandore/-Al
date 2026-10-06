@@ -181,7 +181,7 @@ def get_next_interview_question(
         sequence_number=next_sq.sequence_number,
         question_status=next_sq.question_status,
         text=q.question_text if q else "General UPSC Interview Question",
-        type=q.question_type if q else (next_sq.adaptive_type or "MAIN"),
+        type="MAIN" if next_sq.question_depth == 0 else (q.question_type if q else (next_sq.adaptive_type or "MAIN")),
         difficulty=q.difficulty if q else "MODERATE",
         category=q.category if q else None,
         topic=q.topic if q else None,
@@ -242,6 +242,28 @@ def get_next_interview_question(
         adaptive=adaptive_meta,
         questions=all_questions,
     )
+
+
+@router.post("/{session_id}/skip")
+def skip_interview_question(
+    session_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Mark current session question as SKIPPED."""
+    service = InterviewSessionService(db)
+    return service.skip_question(session_id=session_id, user_id=current_user.id)
+
+
+@router.get("/{session_id}/report")
+def get_interview_session_report(
+    session_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retrieve comprehensive session performance report."""
+    service = AnswerEvaluationService(db)
+    return service.generate_session_report(session_id=session_id, user_id=current_user.id)
 
 
 @router.post("/{session_id}/complete", response_model=InterviewCompleteResponse)

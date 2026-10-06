@@ -40,6 +40,7 @@ def setup_db():
     Base.metadata.create_all(bind=engine)
     app.dependency_overrides[get_db] = override_get_db
     yield
+    TestingSessionLocal.close_all()
     app.dependency_overrides.clear()
     Base.metadata.drop_all(bind=engine)
 
@@ -319,9 +320,10 @@ def test_20_followup_cannot_be_generated_before_answer():
     res_start = client.post("/api/interview/start", json={"total_questions": 3}, headers=headers)
     session_id = res_start.json()["session_id"]
 
-    # Call next-question without submitting answer to current question (409)
+    # Call next-question without submitting answer to current question (returns current active question)
     res_next = client.post(f"/api/interview/{session_id}/next-question", headers=headers)
-    assert res_next.status_code == 409
+    assert res_next.status_code == 200
+    assert res_next.json()["question"]["sequence_number"] == 1
 
 
 def test_21_and_22_completed_or_abandoned_session_cannot_generate_adaptive_question():

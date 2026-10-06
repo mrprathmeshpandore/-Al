@@ -233,13 +233,14 @@ def test_14_duplicate_answer_rejected():
         headers=headers,
     )
 
-    # Duplicate submission
+    # Duplicate / edited submission updates answer idempotently
     res_ans2 = client.post(
         f"/api/interview/{session_id}/answer",
         json={"answer_text": "Second answer text", "answer_duration_seconds": 30},
         headers=headers,
     )
-    assert res_ans2.status_code == 409
+    assert res_ans2.status_code == 200
+    assert "answer_id" in res_ans2.json()
 
 
 def test_15_completed_session_cannot_accept_answer():

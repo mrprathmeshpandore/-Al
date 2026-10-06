@@ -86,6 +86,25 @@ export const interviewApi = {
       method: 'GET',
     });
   },
+  /**
+   * Skip current interview session question.
+   * @param {string} sessionId
+   */
+  async skipInterviewQuestion(sessionId) {
+    return apiRequest(`/interview/${sessionId}/skip`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Retrieve full interview session performance report.
+   * @param {string} sessionId
+   */
+  async getInterviewSessionReport(sessionId) {
+    return apiRequest(`/interview/${sessionId}/report`, {
+      method: 'GET',
+    });
+  },
 };
 
 export const startInterview = interviewApi.startInterview;
@@ -96,3 +115,5 @@ export const completeInterview = interviewApi.completeInterview;
 export const getInterviewHistory = interviewApi.getInterviewHistory;
 export const evaluateInterviewAnswer = interviewApi.evaluateInterviewAnswer;
 export const getInterviewAnswerEvaluation = interviewApi.getInterviewAnswerEvaluation;
+export const skipInterviewQuestion = interviewApi.skipInterviewQuestion;
+export const getInterviewSessionReport = interviewApi.getInterviewSessionReport;

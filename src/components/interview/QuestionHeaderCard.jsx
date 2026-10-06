@@ -28,7 +28,18 @@ export default function QuestionHeaderCard({ questionData }) {
       await audio.play();
     } catch (err) {
       console.error("Failed to synthesize or play speech", err);
-      setIsPlayingAudio(false);
+      // Fallback to browser's native speech synthesis if Gemini fails
+      if ('speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(questionData.question);
+        utterance.lang = 'en-IN';
+        utterance.rate = 0.95;
+        utterance.pitch = 1.0;
+        utterance.onend = () => setIsPlayingAudio(false);
+        utterance.onerror = () => setIsPlayingAudio(false);
+        window.speechSynthesis.speak(utterance);
+      } else {
+        setIsPlayingAudio(false);
+      }
     }
   };
   
