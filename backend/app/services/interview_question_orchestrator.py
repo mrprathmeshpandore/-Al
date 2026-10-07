@@ -143,7 +143,7 @@ class InterviewQuestionOrchestrator:
 
         # 5. Last Resort General UPSC Question (Randomized from active bank)
         fb_q = self._create_fallback_upsc_question(
-            user=user, difficulty=difficulty, topic=topic, category=category, existing_ids=existing_q_ids_list, existing_texts=existing_q_texts
+            user=user, difficulty=difficulty, topic=topic, category=category, existing_ids=existing_q_ids_list, existing_texts=existing_q_texts, language=session.language
         )
         return self._adapt_question_language(fb_q, session.language)
 
@@ -232,7 +232,11 @@ class InterviewQuestionOrchestrator:
                         return q
 
         query = self.db.query(InterviewQuestion).filter(
-            or_(InterviewQuestion.user_id == user_id, InterviewQuestion.user_id.is_(None))
+            or_(
+                InterviewQuestion.user_id == user_id,
+                InterviewQuestion.user_id == "00000000-0000-0000-0000-000000000000",
+                InterviewQuestion.user_id.is_(None),
+            )
         )
         if existing_ids:
             query = query.filter(InterviewQuestion.id.notin_(existing_ids))
@@ -245,13 +249,21 @@ class InterviewQuestionOrchestrator:
 
         candidates = query.order_by(func.random()).limit(50).all()
 
+        is_target_english = ("en" in clean_lang or "english" in clean_lang)
         for q in candidates:
             if normalize_q_text(q.question_text) not in existing_texts:
+                is_dev = bool(re.search(r'[\u0900-\u097F]', q.question_text or ""))
+                if is_target_english and is_dev:
+                    continue
                 return q
 
         # Relax topic/difficulty filter
         relaxed_query = self.db.query(InterviewQuestion).filter(
-            or_(InterviewQuestion.user_id == user_id, InterviewQuestion.user_id.is_(None))
+            or_(
+                InterviewQuestion.user_id == user_id,
+                InterviewQuestion.user_id == "00000000-0000-0000-0000-000000000000",
+                InterviewQuestion.user_id.is_(None),
+            )
         )
         if existing_ids:
             relaxed_query = relaxed_query.filter(InterviewQuestion.id.notin_(existing_ids))
@@ -265,6 +277,9 @@ class InterviewQuestionOrchestrator:
 
         for q in relaxed_candidates:
             if normalize_q_text(q.question_text) not in existing_texts:
+                is_dev = bool(re.search(r'[\u0900-\u097F]', q.question_text or ""))
+                if is_target_english and is_dev:
+                    continue
                 return q
 
         return None
@@ -297,11 +312,18 @@ class InterviewQuestionOrchestrator:
         category: Optional[str],
         existing_ids: List[str],
         existing_texts: set,
+        language: str = "en-IN",
     ) -> InterviewQuestion:
-        # Try unasked active questions by text & ID
+        clean_lang = (language or "en-IN").lower()
+        is_target_english = ("en" in clean_lang or "english" in clean_lang)
+
+        # Try unasked active questions by text & ID matching requested language
         candidates = self.db.query(InterviewQuestion).filter(InterviewQuestion.status == "ACTIVE").order_by(func.random()).all()
         for q in candidates:
             if q.id not in existing_ids and normalize_q_text(q.question_text) not in existing_texts:
+                is_dev = bool(re.search(r'[\u0900-\u097F]', q.question_text or ""))
+                if is_target_english and is_dev:
+                    continue
                 return q
 
         # If all DB questions have been asked, dynamically generate a fresh RAG question
