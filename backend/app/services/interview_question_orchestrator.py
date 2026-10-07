@@ -213,6 +213,24 @@ class InterviewQuestionOrchestrator:
         clean_lang = (language or "en-IN").lower()
         is_target_devanagari = ("mr" in clean_lang or "marathi" in clean_lang or "hi" in clean_lang or "hindi" in clean_lang)
 
+        # ULTRA-FAST MULTILINGUAL PASS: Search whole bank for unasked native/adapted Devanagari questions first
+        if is_target_devanagari:
+            dev_query = self.db.query(InterviewQuestion).filter(
+                or_(
+                    InterviewQuestion.user_id == user_id,
+                    InterviewQuestion.user_id == "00000000-0000-0000-0000-000000000000",
+                    InterviewQuestion.user_id.is_(None),
+                )
+            )
+            if existing_ids:
+                dev_query = dev_query.filter(InterviewQuestion.id.notin_(existing_ids))
+            
+            dev_candidates = dev_query.order_by(func.random()).limit(100).all()
+            for q in dev_candidates:
+                if normalize_q_text(q.question_text) not in existing_texts:
+                    if re.search(r'[\u0900-\u097F]', q.question_text or "") or (q.personalization_label and "adapted_from:" in q.personalization_label):
+                        return q
+
         query = self.db.query(InterviewQuestion).filter(
             or_(InterviewQuestion.user_id == user_id, InterviewQuestion.user_id.is_(None))
         )
@@ -227,14 +245,6 @@ class InterviewQuestionOrchestrator:
 
         candidates = query.order_by(func.random()).limit(50).all()
 
-        # FAST PASS: If target language is Marathi/Hindi, prioritize candidates that are ALREADY in Devanagari or pre-adapted!
-        if is_target_devanagari:
-            for q in candidates:
-                if normalize_q_text(q.question_text) not in existing_texts:
-                    if re.search(r'[\u0900-\u097F]', q.question_text or "") or (q.personalization_label and "adapted_from:" in q.personalization_label):
-                        return q
-
-        # Standard Pass
         for q in candidates:
             if normalize_q_text(q.question_text) not in existing_texts:
                 return q

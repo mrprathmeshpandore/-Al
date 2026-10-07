@@ -65,6 +65,20 @@ class FollowupEngine:
         q_cat = parent_q.category if parent_q else "General"
         q_topic = parent_q.topic if parent_q else "Governance"
 
+        # FAST-PATH PRE-SCREENING: Skip expensive Gemini network call if answer is blank or already scored exceptionally high (>= 8.5/10 or >= 85%)
+        ans_text = (answer.answer_text or "").strip()
+        words = ans_text.split()
+        if len(words) < 2:
+            logger.info("FollowupEngine Fast-Path: Answer blank. Skipping follow-up.")
+            return False, None, "Response was empty; moving to next question."
+
+        if answer.evaluation:
+            e = answer.evaluation
+            ov = e.overall_score or 0
+            if ov >= 8.5 or ov >= 85:
+                logger.info(f"FollowupEngine Fast-Path: Candidate scored exceptional ({ov}). Skipping follow-up.")
+                return False, None, f"Response was complete and well-structured (Score: {ov})."
+
         # Evaluation context if available
         eval_context = ""
         if answer.evaluation:
